@@ -1,4 +1,4 @@
-# Ingrediants for Causal Learning in model-based RL
+# Ingredients for Causal Learning in model-based RL
 
 
 ## Generate data
