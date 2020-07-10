@@ -101,16 +101,16 @@ def register_chemistry_rl_envs(name = 'ColorChangingRL-{}-{}-{}-{}-{}', num_obje
             **kwargs),
     )
 
-for n_obj in [3, 4, 5]:
-    for n_colors in [3, 4, 5]:
+for n_obj in [3, 4, 5, 6, 7, 8]:
+    for n_colors in [3, 4, 5, 6, 7, 8]:
         register_chemistry_envs('ColorChanging-{}-{}-{}', n_obj, n_colors)
 
-for n_obj in [3, 4, 5]:
-    for n_colors in [3, 4, 5]:
+for n_obj in [3, 4, 5, 6, 7, 8]:
+    for n_colors in [3, 4, 5, 6, 7, 8]:
         register_chemistry_envs_moving('ColorChangingMoving-{}-{}-{}', n_obj, n_colors)
 
-for n_obj in [3, 4, 5]:
-    for n_colors in [3, 4, 5]:
+for n_obj in [3, 4, 5, 6, 7, 8]:
+    for n_colors in [3, 4, 5, 6, 7, 8]:
         for pal_id in [0, 1]:
             for steps in [50, 200]:
                 register_chemistry_rl_envs('ColorChangingRL-{}-{}-{}-{}-{}', n_obj, n_colors, pal_id, steps)

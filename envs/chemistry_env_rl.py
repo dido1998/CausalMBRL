@@ -18,6 +18,7 @@ from PIL import Image
 import skimage
 
 from cswm import utils
+import random
 
 
 
@@ -25,10 +26,18 @@ mpl.use('Agg')
 
 def random_dag(M, N, g = None):
     """Generate a random Directed Acyclic Graph (DAG) with a given number of nodes and edges."""
+    if M == 3:
+        return np.array([[0, 0, 0],[1, 0, 0], [1, 0, 0]])
+    if M == 5:
+        return np.array([[0., 0., 0., 0., 0.],
+        [1., 0., 0., 0., 0.],
+        [1., 0., 0., 0., 0.],
+        [1., 1., 0., 0., 0.],
+        [0., 0., 1., 0., 0.]]) 
     if g is None:
         expParents = 5
         idx        = np.arange(M).astype(np.float32)[:,np.newaxis]
-        idx_maxed  = np.minimum(idx, expParents)
+        idx_maxed  = np.minimum(idx * 0.5, expParents)
         p          = np.broadcast_to(idx_maxed/(idx+1), (M, M))
         B          = np.random.binomial(1, p)
         B          = np.tril(B, -1)
@@ -54,15 +63,42 @@ def random_dag(M, N, g = None):
 
 
 
+def diamond(r0, c0, width, im_size):
+    rr, cc = [r0, r0 + width // 2, r0 + width, r0 + width // 2], [c0 + width // 2, c0, c0 + width // 2, c0 + width]
+    return skimage.draw.polygon(rr, cc, im_size)
+
 def square(r0, c0, width, im_size):
     rr, cc = [r0, r0 + width, r0 + width, r0], [c0, c0, c0 + width, c0 + width]
     return skimage.draw.polygon(rr, cc, im_size)
-
 
 def triangle(r0, c0, width, im_size):
     rr, cc = [r0, r0 + width, r0 + width], [c0 + width//2, c0, c0 + width]
     return skimage.draw.polygon(rr, cc, im_size)
 
+def cross(r0, c0, width, im_size):
+    diff1 = width // 3 + 1
+    diff2 = 2 * width // 3
+    rr = [r0 + diff1, r0 + diff2, r0 + diff2, r0 + width, r0 + width,
+            r0 + diff2, r0 + diff2, r0 + diff1, r0 + diff1, r0, r0, r0 + diff1]
+    cc = [c0, c0, c0 + diff1, c0 + diff1, c0 + diff2, c0 + diff2, c0 + width,
+            c0 + width, c0 + diff2, c0 + diff2, c0 + diff1, c0 + diff1]
+    return skimage.draw.polygon(rr, cc, im_size)
+
+def pentagon(r0, c0, width, im_size):
+    diff1 = width // 3 - 1
+    diff2 = 2 * width // 3 + 1
+    rr = [r0 + width // 2, r0 + width, r0 + width, r0 + width // 2, r0]
+    cc = [c0, c0 + diff1, c0 + diff2, c0 + width, c0 + width // 2]
+    return skimage.draw.polygon(rr, cc, im_size)
+
+def parallelogram(r0, c0, width, im_size):
+    rr, cc = [r0, r0 + width, r0 + width, r0], [c0, c0 + width // 2, c0 + width, c0 + width - width // 2]
+    return skimage.draw.polygon(rr, cc, im_size)
+
+
+def scalene_triangle(r0, c0, width, im_size):
+    rr, cc = [r0, r0 + width, r0 + width//2], [c0 + width - width // 2, c0, c0 + width]
+    return skimage.draw.polygon(rr, cc, im_size)
 
 def fig2rgb_array(fig):
     fig.canvas.draw()
@@ -105,18 +141,22 @@ class MLP(nn.Module):
         self.layers = []
         for i in range(1, len(dims)):
             self.layers.append(nn.Linear(dims[i-1], dims[i]))
-            torch.nn.init.orthogonal_(self.layers[-1].weight.data, 1.5)
+            torch.nn.init.orthogonal_(self.layers[-1].weight.data, 2.5)
             torch.nn.init.uniform_(self.layers[-1].bias.data, -1.1, +1.1)
         self.layers = nn.ModuleList(self.layers)
 
     def forward(self, x, mask):
+
         x = x * mask
+
         for i, l in enumerate(self.layers):
             if i == len(self.layers) - 1:
                 x = torch.softmax(l(x), dim = 1)
             else:
                 x = torch.relu(l(x))
+        #print(x)
         x = torch.distributions.one_hot_categorical.OneHotCategorical(probs = x).sample()
+
         return x
 
 
@@ -124,6 +164,7 @@ class MLP(nn.Module):
 class Coord:
     x: int
     y: int
+    
 
     def __add__(self, other):
         return Coord(self.x + other.x,
@@ -136,6 +177,7 @@ class Object:
     color: int
 
 
+
 class ColorChangingRL(gym.Env):
     """Gym environment for block pushing task."""
 
@@ -143,6 +185,7 @@ class ColorChangingRL(gym.Env):
                  *, num_objects=5,
                  num_colors=None,  pal_id = 0, max_steps = 50, seed=None):
         np.random.seed(0)
+        torch.manual_seed(0)
         self.width = width
         self.height = height
         self.render_type = render_type
@@ -153,28 +196,25 @@ class ColorChangingRL(gym.Env):
             num_colors = num_objects
         self.num_colors = num_colors
         self.num_actions = self.num_objects * self.num_colors
-        self.max_steps = max_steps
-        self.cur_step = 0
+        self.num_target_interventions = 10
+        self.max_steps = 30
         
         self.mlps = []
         self.mask = None
 
-        self.pal_id = pal_id
+        colors = ['blue', 'green', 'yellow', 'white', 'red']
 
-        self.palletes= [['Pastel1', 'Pastel2', 'Paired', 'Accent', 'Dark2', 'Set1'], 
-                   ['Set2', 'Set3', 'tab10', 'tab20', 'tab20b', 'tab20c']]
-
-        self.colors, _ = utils.get_colors_and_weights(cmap = self.palletes[self.pal_id][np.random.randint(0, len(self.palletes[self.pal_id]))], num_colors = self.num_colors)
+        self.colors, _ = utils.get_colors_and_weights(cmap = 'Set1', num_colors = self.num_colors)#[mpl.colors.to_rgba(colors[i]) for i in range(self.num_colors)]
         self.object_to_color = [torch.zeros(self.num_colors) for _ in range(self.num_objects)]
-        self.object_to_color_target = [torch.zeros(self.num_colors) for _ in range(self.num_objects)]
 
         self.np_random = None
         self.game = None
         self.target = None
 
-        self.adjacency_matrix = None
+        # Initialize to pos outside of env for easier collision resolution.
+        self.objects = OrderedDict()
 
-        self.colors, _ = utils.get_colors_and_weights(cmap = self.palletes[self.pal_id][np.random.randint(0, len(self.palletes[self.pal_id]))], num_colors = self.num_colors)
+        self.adjacency_matrix = None
 
         mlp_dims = [self.num_objects * self.num_colors, 4 * self.num_objects * self.num_colors, self.num_colors]
 
@@ -182,8 +222,9 @@ class ColorChangingRL(gym.Env):
 
         for i in range(self.num_objects):
             self.mlps.append(MLP(mlp_dims))
+
         num_nodes = self.num_objects
-        num_edges = np.random.randint(1, (((num_nodes) * (num_nodes - 1)) // 2) + 1)
+        num_edges = np.random.randint(num_nodes, (((num_nodes) * (num_nodes - 1)) // 2) + 1)
         #if graph is None:
         self.adjacency_matrix = random_dag(num_nodes, num_edges)
         #else:
@@ -191,39 +232,26 @@ class ColorChangingRL(gym.Env):
 
         self.adjacency_matrix = torch.from_numpy(self.adjacency_matrix).float()
 
-        
+        # Generate masks so that each variable only recieves input from its parents.
+        self.generate_masks()
 
         # If True, then check for collisions and don't allow two
         #   objects to occupy the same position.
         self.collisions = True
-        # Initialize to pos outside of env for easier collision resolution.
-        self.objects = OrderedDict()
-        # Randomize object position.
-        while len(self.objects) < self.num_objects:
-            idx = len(self.objects)
-            # Re-sample to ensure objects don't fall on same spot.
-            while not (idx in self.objects and
-                       self.valid_pos(self.objects[idx].pos, idx)):
-                self.objects[idx] = Object(
-                    pos=Coord(
-                        x=np.random.choice(np.arange(self.width)),
-                        y=np.random.choice(np.arange(self.height)),
-                    ),
-                    color=torch.argmax(self.object_to_color[idx]))
+
+           
+
 
         self.action_space = spaces.Discrete(self.num_actions)
-        self.observation_space = (spaces.Box(
+        self.observation_space = spaces.Box(
             low=0, high=1,
-            shape=(3, self.width, self.height),
+            shape=(6, 50, 50),
             dtype=np.float32
-        ), spaces.Box(
-            low=0, high=1,
-            shape=(3, self.width, self.height),
-            dtype=np.float32
-        ))
+        )
 
         self.seed(seed)
         self.reset()
+
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -246,25 +274,49 @@ class ColorChangingRL(gym.Env):
     def render_shapes(self):
         im = np.zeros((self.width * 10, self.height * 10, 3), dtype=np.float32)
         for idx, obj in self.objects.items():
-            if idx % 3 == 0:
+            if idx == 0:
                 rr, cc = skimage.draw.circle(
                     obj.pos.x * 10 + 5, obj.pos.y * 10 + 5, 5, im.shape)
                 im[rr, cc, :] = self.colors[obj.color][:3]
-            elif idx % 3 == 1:
+            elif idx == 1:
                 rr, cc = triangle(
                     obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
                 im[rr, cc, :] = self.colors[obj.color][:3]
-            else:
+            elif idx == 2:
                 rr, cc = square(
                     obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
                 im[rr, cc, :] = self.colors[obj.color][:3]
+            elif idx == 3:
+                rr, cc = diamond(
+                    obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
+                im[rr, cc, :] = self.colors[obj.color][:3]
+            elif idx == 4:
+                rr, cc = pentagon(
+                    obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
+                im[rr, cc, :] = self.colors[obj.color][:3]
+            elif idx == 5:
+                rr, cc = cross(
+                    obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
+                im[rr, cc, :] = self.colors[obj.color][:3]
+            elif idx == 6:
+                rr, cc = parallelogram(
+                    obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
+                im[rr, cc, :] = self.colors[obj.color][:3]
+            else:
+
+                rr, cc = scalene_triangle(
+                    obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
+                im[rr, cc, :] = self.colors[obj.color][:3]
+
+
+
         return im.transpose([2, 0, 1])
 
 
     def render_grid_target(self):
         im = np.zeros((3, self.width, self.height))
         for idx, obj in self.objects.items():
-            im[:, obj.pos.x, obj.pos.y] = self.colors[torch.argmax(self.object_to_color_target[idx])][:3]
+            im[:, obj.pos.x, obj.pos.y] = self.colors[torch.argmax(self.object_to_color_target[idx]).item()][:3]
         return im
 
     def render_circles_target(self):
@@ -272,24 +324,48 @@ class ColorChangingRL(gym.Env):
         for idx, obj in self.objects.items():
             rr, cc = skimage.draw.circle(
                 obj.pos.x * 10 + 5, obj.pos.y * 10 + 5, 5, im.shape)
-            im[rr, cc, :] = self.colors[torch.argmax(self.object_to_color_target[idx])][:3]
+            im[rr, cc, :] = self.colors[torch.argmax(self.object_to_color_target[idx]).item()][:3]
         return im.transpose([2, 0, 1])
 
     def render_shapes_target(self):
         im = np.zeros((self.width * 10, self.height * 10, 3), dtype=np.float32)
         for idx, obj in self.objects.items():
-            if idx % 3 == 0:
+            if idx == 0:
                 rr, cc = skimage.draw.circle(
                     obj.pos.x * 10 + 5, obj.pos.y * 10 + 5, 5, im.shape)
-                im[rr, cc, :] = self.colors[torch.argmax(self.object_to_color_target[idx])][:3]
-            elif idx % 3 == 1:
+                im[rr, cc, :] = self.colors[torch.argmax(self.object_to_color_target[idx]).item()][:3]
+            elif idx == 1:
                 rr, cc = triangle(
                     obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
-                im[rr, cc, :] = self.colors[torch.argmax(self.object_to_color_target[idx])][:3]
-            else:
+                im[rr, cc, :] = self.colors[torch.argmax(self.object_to_color_target[idx]).item()][:3]
+            elif idx == 2:
                 rr, cc = square(
                     obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
-                im[rr, cc, :] = self.colors[torch.argmax(self.object_to_color_target[idx])][:3]
+                im[rr, cc, :] = self.colors[torch.argmax(self.object_to_color_target[idx]).item()][:3]
+            elif idx == 3:
+                rr, cc = diamond(
+                    obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
+                im[rr, cc, :] = self.colors[torch.argmax(self.object_to_color_target[idx]).item()][:3]
+            elif idx == 4:
+                rr, cc = pentagon(
+                    obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
+                im[rr, cc, :] = self.colors[torch.argmax(self.object_to_color_target[idx]).item()][:3]
+            elif idx == 5:
+                rr, cc = cross(
+                    obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
+                im[rr, cc, :] = self.colors[torch.argmax(self.object_to_color_target[idx]).item()][:3]
+            elif idx == 6:
+                rr, cc = parallelogram(
+                    obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
+                im[rr, cc, :] = self.colors[torch.argmax(self.object_to_color_target[idx]).item()][:3]
+            else:
+
+                rr, cc = scalene_triangle(
+                    obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
+                im[rr, cc, :] = self.colors[torch.argmax(self.object_to_color_target[idx]).item()][:3]
+
+
+
         return im.transpose([2, 0, 1])
 
     def render_cubes(self):
@@ -297,7 +373,7 @@ class ColorChangingRL(gym.Env):
         return im.transpose([2, 0, 1])
 
     def render(self):
-        return dict(
+        return np.concatenate((dict(
             grid=self.render_grid,
             circles=self.render_circles,
             shapes=self.render_shapes,
@@ -307,7 +383,7 @@ class ColorChangingRL(gym.Env):
             circles=self.render_circles_target,
             shapes=self.render_shapes_target,
             cubes=self.render_cubes,
-        )[self.render_type]() 
+        )[self.render_type]()), axis = 0) 
 
     def get_state(self):
         im = np.zeros(
@@ -316,7 +392,7 @@ class ColorChangingRL(gym.Env):
             (self.num_objects * self.num_colors, self.width, self.height), dtype=np.int32)
         for idx, obj in self.objects.items():
             im[idx * self.num_colors + obj.color, obj.pos.x, obj.pos.y] =  1
-            im_target[idx * self.num_colors + torch.argmax(self.object_to_color_target[idx]), obj.pos.x, obj.pos.y] =  1
+            im_target[idx * self.num_colors + torch.argmax(self.object_to_color_target[idx]).item(), obj.pos.x, obj.pos.y] =  1
         return im, im_target
 
     def generate_masks(self):
@@ -325,34 +401,68 @@ class ColorChangingRL(gym.Env):
         self.mask = mask.view(self.adjacency_matrix.size(0), -1)
 
     def generate_target(self):
-        for i in range(self.max_steps):
-            intervention_id = np.random.randint(0, self.num_objects)
-            to_color = np.random.randint(0, self.num_colors)
-            while to_color == torch.argmax(self.object_to_color[intervention_id]):
-                to_color = np.random.randint(0, self.num_colors)
+        for i in range(self.num_target_interventions):
+            intervention_id = random.randint(0, self.num_objects - 1)
+            to_color = random.randint(0, self.num_colors - 1)
+            #while to_color == torch.argmax(self.object_to_color[intervention_id]):
+            #    to_color = random.randint(0, self.num_colors - 1)
 
             self.object_to_color_target[intervention_id][to_color] = 1
             self.sample_variables_target(intervention_id)
 
-    def reset(self, graph = None):
-        self.cur_step = 0
+    def check_softmax(self):
+        s_ = []
+        for i in range(1, len(self.objects)):
+            x = torch.cat(self.object_to_color, dim = 0).unsqueeze(0)
+            mask = self.mask[i].unsqueeze(0)
+            _, s = self.mlps[i](x, mask, return_softmax = True)
+            s_.append(s.detach().cpu().numpy().tolist())
+        return s_
         
 
-        # Generate masks so that each variable only recieves input from its parents.
-        self.generate_masks()
+    def check_softmax_target(self):
+        s_ = []
+        for i in range(1, len(self.objects)):
+            x = torch.cat(self.object_to_color_target, dim = 0).unsqueeze(0)
+            mask = self.mask[i].unsqueeze(0)
+            _, s = self.mlps[i](x, mask, return_softmax = True)
+            s_.append(s.detach().cpu().numpy().tolist())
+        return s_
+
+    def reset(self, graph = None):
+        self.cur_step = 0
 
         self.object_to_color = [torch.zeros(self.num_colors) for _ in range(self.num_objects)]
         self.object_to_color_target = [torch.zeros(self.num_colors) for _ in range(self.num_objects)]
+
         # Sample color for root node randomly
         root_color = np.random.randint(0, self.num_colors)
         self.object_to_color[0][root_color] = 1
+        self.object_to_color_target[0][root_color] = 1
 
-        # Sample color for other nodes using MLPs
-        self.sample_variables(0)
+
+         # Sample color for other nodes using MLPs
+        self.sample_variables(0, do_everything = True)
+
+        self.objects = OrderedDict()
+        # Randomize object position.
+        while len(self.objects) < self.num_objects:
+            idx = len(self.objects)
+            # Re-sample to ensure objects don't fall on same spot.
+            while not (idx in self.objects and
+                       self.valid_pos(self.objects[idx].pos, idx)):
+                self.objects[idx] = Object(
+                    pos=Coord(
+                        x=np.random.choice(np.arange(self.width)),
+                        y=np.random.choice(np.arange(self.height)),
+                    ),
+                    color=torch.argmax(self.object_to_color[idx]))
+        self.sample_variables_target(0, do_everything = True)
 
         self.generate_target()
+        #self.check_softmax()
+        #self.check_softmax_target()
 
-        
         return self.render()
 
     def valid_pos(self, pos, obj_id):
@@ -372,29 +482,41 @@ class ColorChangingRL(gym.Env):
 
         return True
 
-    def sample_variables(self, idx):
+    def is_reachable(self, idx, reached):
+        for r in reached:
+            if self.adjacency_matrix[idx, r] == 1:
+                return True
+        return False
+
+
+    def sample_variables(self, idx, do_everything = False):
         """
         idx: variable at which intervention is performed
         """
-        
+        reached = [idx]
         for v in range(idx + 1, self.num_objects):
-            inp = torch.cat(self.object_to_color, dim = 0).unsqueeze(0)
-            mask = self.mask[v].unsqueeze(0)
+            if do_everything or self.is_reachable(v, reached):
+                    reached.append(v)
+                    inp = torch.cat(self.object_to_color, dim = 0).unsqueeze(0)
+                    mask = self.mask[v].unsqueeze(0)
 
-            out = self.mlps[v](inp, mask)
-            self.object_to_color[v] = out.squeeze(0)
+                    out = self.mlps[v](inp, mask)
+                    self.object_to_color[v] = out.squeeze(0)
 
-    def sample_variables_target(self, idx):
+    def sample_variables_target(self, idx, do_everything = False):
         """
         idx: variable at which intervention is performed
         """
-        
+        reached = [idx]
         for v in range(idx + 1, self.num_objects):
-            inp = torch.cat(self.object_to_color_target, dim = 0).unsqueeze(0)
-            mask = self.mask[v].unsqueeze(0)
+            if do_everything or self.is_reachable(v, reached):
+                reached.append(v)
 
-            out = self.mlps[v](inp, mask)
-            self.object_to_color_target[v] = out.squeeze(0)
+                inp = torch.cat(self.object_to_color_target, dim = 0).unsqueeze(0)
+                mask = self.mask[v].unsqueeze(0)
+
+                out = self.mlps[v](inp, mask)
+                self.object_to_color_target[v] = out.squeeze(0)
 
     def translate(self, obj_id, color_id):
         """Translate object pixel.
@@ -417,14 +539,21 @@ class ColorChangingRL(gym.Env):
 
         
         done = False
-        if self.cur_step > self.max_steps:
-            done = True
+        
         self.translate(obj_id, color_id)
         matches = 0
         for c1, c2 in zip(self.object_to_color, self.object_to_color_target):
-            if torch.argmax(c1) == torch.argmax(c2):
+            if torch.argmax(c1).item() == torch.argmax(c2).item():
                 matches+=1
-        reward = matches / self.num_objects
+        reward = 0
+        #reward = 0
+        #if matches == self.num_objects:
+        #    reward = 1
+
         
         state_obs = self.render()
+        if self.cur_step >= self.max_steps:
+            reward = matches / self.num_objects
+            done = True
+        self.cur_step += 1
         return state_obs, reward, done, None

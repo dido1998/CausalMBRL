@@ -91,6 +91,14 @@ def pentagon(r0, c0, width, im_size):
     cc = [c0, c0 + diff1, c0 + diff2, c0 + width, c0 + width // 2]
     return skimage.draw.polygon(rr, cc, im_size)
 
+def parallelogram(r0, c0, width, im_size):
+    rr, cc = [r0, r0 + width, r0 + width, r0], [c0, c0 + width // 2, c0 + width, c0 + width - width // 2]
+    return skimage.draw.polygon(rr, cc, im_size)
+
+def scalene_triangle(r0, c0, width, im_size):
+    rr, cc = [r0, r0 + width, r0 + width//2], [c0 + width - width // 2, c0, c0 + width]
+    return skimage.draw.polygon(rr, cc, im_size)
+
 def fig2rgb_array(fig):
     fig.canvas.draw()
     buffer = fig.canvas.tostring_rgb()
@@ -291,11 +299,18 @@ class ColorChangingMoving(gym.Env):
                 rr, cc = pentagon(
                     obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
                 im[rr, cc, :] = self.colors[obj.color][:3]
-            else:
+            elif idx == 5:
                 rr, cc = cross(
                     obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
                 im[rr, cc, :] = self.colors[obj.color][:3]
-
+            elif idx == 6:
+                rr, cc = parallelogram(
+                    obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
+                im[rr, cc, :] = self.colors[obj.color][:3]
+            else:
+                rr, cc = scalene_triangle(
+                    obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
+                im[rr, cc, :] = self.colors[obj.color][:3]
         return im.transpose([2, 0, 1])
 
     def render_cubes(self):
