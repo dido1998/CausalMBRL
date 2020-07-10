@@ -331,7 +331,7 @@ def save_img(img, name, pad_value=None):
     plt.savefig(name, bbox_inches='tight', pad_inches=0)
 
 def evaluate(model, loader, *,
-             device, batch_size, num_steps, silent=False, name="Default", save_folder = None):
+             device, batch_size, num_steps, silent=False, name="Default", save_folder = None, cswm = False):
     # topk = [1, 5, 10]
     name = str(name).split('/')[-1]
     topk = [1]
@@ -350,9 +350,9 @@ def evaluate(model, loader, *,
                           for tensor in data_batch]
             observations, actions = data_batch
 
-            if observations[0].size(0) != batch_size:
-                print('something wrong')
-                continue
+            #if observations[0].size(0) != batch_size:
+            #    print('something wrong')
+            #    continue
 
             obs = observations[0]
             next_obs = observations[-1]
@@ -363,9 +363,9 @@ def evaluate(model, loader, *,
             pred_state = state
             for i in range(num_steps):
                 pred_state = model.transition(pred_state, actions[i])
-
-            rec_obs = torch.sigmoid(model.decoder(pred_state))
-            rec_orig = torch.sigmoid(model.decoder(state))
+            if not cswm:
+                rec_obs = torch.sigmoid(model.decoder(pred_state))
+                rec_orig = torch.sigmoid(model.decoder(state))
 
             if batch_idx == 0:
                 if not os.path.exists(str(save_folder) + f'/Figures/'):
@@ -375,11 +375,13 @@ def evaluate(model, loader, *,
                 
                 save_image(obs[:16], str(save_folder) + f'/Figures/{name}/true_original_{num_steps}.png', pad_value=1.0, nrow=4)
                 save_image(next_obs[:16], str(save_folder) +  f'/Figures/{name}/true_step_{num_steps}.png', pad_value=1.0, nrow=4)
-                save_image(rec_orig[:16], str(save_folder) +  f'/Figures/{name}/rec_orig_{num_steps}.png', pad_value=1.0, nrow=4)
-                save_image(rec_obs[:16], str(save_folder) +  f'/Figures/{name}/rec_step_{num_steps}.png', pad_value=1.0, nrow=4)
-
-            rec += F.binary_cross_entropy(
-                    rec_obs, next_obs, reduction='sum').item()
+                if not cswm:
+                    save_image(rec_orig[:16], str(save_folder) +  f'/Figures/{name}/rec_orig_{num_steps}.png', pad_value=1.0, nrow=4)
+                    save_image(rec_obs[:16], str(save_folder) +  f'/Figures/{name}/rec_step_{num_steps}.png', pad_value=1.0, nrow=4)
+            rec = 0
+            if not cswm:
+                rec += F.binary_cross_entropy(
+                        rec_obs, next_obs, reduction='sum').item()
 
             pred_states.append(pred_state.cpu())
             next_states.append(next_state.cpu())
@@ -535,111 +537,8 @@ def evaluate_lstm(model, loader, *,
     return hits_at, rr_sum, rec, num_samples
 
 
-def evaluate_cswm(model, decoder, loader, *,
-             device, batch_size, num_steps, silent=False, name="Default", save_folder = None):
-    # topk = [1, 5, 10]
-    name = str(name).split('/')[-1]
-    topk = [1]
-    hits_at = defaultdict(int)
-    num_samples = 0
-    rr_sum = 0
-    rec = 0.0
-
-    pred_states = []
-    next_states = []
-
-    with torch.no_grad():
-        iterator = enumerate(tqdm(loader, disable=silent, leave=False))
-        for batch_idx, data_batch in iterator:
-            data_batch = [[t.to(device) for t in tensor]
-                          for tensor in data_batch]
-            observations, actions = data_batch
-
-            if observations[0].size(0) != batch_size:
-                print('something wrong')
-                continue
-
-            obs = observations[0]
-            next_obs = observations[-1]
-
-            state = model.obj_encoder(model.obj_extractor(obs))
-            next_state = model.obj_encoder(model.obj_extractor(next_obs))
-
-            pred_state = state
-            for i in range(num_steps):
-                pred_trans = model.transition_model(pred_state, actions[i].long())
-                pred_state = pred_state + pred_trans
-
-            if decoder is not None:
-                rec_obs = torch.sigmoid(decoder(pred_state))
-                rec_orig = torch.sigmoid(decoder(state))
-                rec += F.binary_cross_entropy(
-                    rec_obs, next_obs, reduction='sum').item()
-                if not os.path.exists(str(save_folder) + f'/Figures/'):
-                    os.mkdir(str(save_folder) + f'/Figures/')
-                if not os.path.exists(str(save_folder) + f'/Figures/{name}'):
-                    os.mkdir(str(save_folder) + f'/Figures/{name}')
-                
-                save_image(obs[:16], str(save_folder) + f'/Figures/{name}/true_original_{num_steps}.png', pad_value=1.0, nrow=4)
-                save_image(next_obs[:16], str(save_folder) +  f'/Figures/{name}/true_step_{num_steps}.png', pad_value=1.0, nrow=4)
-                save_image(rec_orig[:16], str(save_folder) +  f'/Figures/{name}/rec_orig_{num_steps}.png', pad_value=1.0, nrow=4)
-                save_image(rec_obs[:16], str(save_folder) +  f'/Figures/{name}/rec_step_{num_steps}.png', pad_value=1.0, nrow=4)            
-
-            pred_states.append(pred_state.cpu())
-            next_states.append(next_state.cpu())
-
-        pred_state_cat = torch.cat(pred_states, dim=0)
-        next_state_cat = torch.cat(next_states, dim=0)
-
-        full_size = pred_state_cat.size(0)
-
-        # Flatten object/feature dimensions
-        next_state_flat = next_state_cat.view(full_size, -1)
-        pred_state_flat = pred_state_cat.view(full_size, -1)
-
-        dist_matrix = pairwise_distance_matrix(
-            next_state_flat, pred_state_flat)
-        dist_matrix_diag = torch.diag(dist_matrix).unsqueeze(-1)
-        dist_matrix_augmented = torch.cat(
-            [dist_matrix_diag, dist_matrix], dim=1)
-
-        # Workaround to get a stable sort in numpy.
-        dist_np = dist_matrix_augmented.numpy()
-        indices = []
-        for row in dist_np:
-            keys = (np.arange(len(row)), row)
-            indices.append(np.lexsort(keys))
-        indices = np.stack(indices, axis=0)
-        indices = torch.from_numpy(indices).long()
-
-        print('Processed {} batches of size {}'.format(
-            batch_idx + 1, batch_size))
-
-        labels = torch.zeros(
-            indices.size(0), device=indices.device,
-            dtype=torch.int64).unsqueeze(-1)
-
-        num_samples += full_size
-        print('Size of current top k evaluation batch: {}'.format(
-            full_size))
-
-        for k in topk:
-            match = indices[:, :k] == labels
-            num_matches = match.sum()
-            hits_at[k] += num_matches.item()
-
-        match = indices == labels
-        _, ranks = match.max(1)
-
-        reciprocal_ranks = torch.reciprocal(ranks.double() + 1)
-        rr_sum += reciprocal_ranks.sum()
-
-    return hits_at, rr_sum, rec, num_samples
-
-
-
 def eval_steps(model, steps_array, *,
-               filename, batch_size, device, save_folder, name="Default", action_dim = 5):
+               filename, batch_size, device, save_folder, name="Default", action_dim = 5, cswm = False):
     string = ""
     for steps in steps_array:
         print("Loading data...")
@@ -653,7 +552,7 @@ def eval_steps(model, steps_array, *,
         hits_at, rr_sum, rec, num_samples = evaluate(
             model, eval_loader,
             device=device, batch_size=batch_size,
-            num_steps=steps, name = name + str(steps), save_folder = save_folder)
+            num_steps=steps, name = name + str(steps), save_folder = save_folder, cswm = cswm)
 
         print(f'Steps: {steps}')
         for k in [1]:
@@ -696,34 +595,3 @@ def eval_steps_lstm(model, steps_array, *,
         f.write(f'{name} : {string} \n')
 
     print(string)
-
-
-def eval_steps_cswm(model, decoder, steps_array, *,
-               filename, batch_size, device, save_folder, name="Default"):
-    string = ""
-    for steps in steps_array:
-        print("Loading data...")
-        dataset = PathDataset(
-            hdf5_file=filename, path_length=steps,
-            action_transform=None,
-            in_memory=False)
-        eval_loader = data.DataLoader(
-            dataset, batch_size=batch_size, shuffle=False, num_workers=0)
-
-        hits_at, rr_sum, rec, num_samples = evaluate_cswm(
-            model, decoder, eval_loader,
-            device=device, batch_size=batch_size,
-            num_steps=steps, name = name + str(steps), save_folder = save_folder)
-
-        print(f'Steps: {steps}')
-        for k in [1]:
-            print(f'H@{k}: {hits_at[k] / num_samples * 100:.2f}%')
-
-        print(f'MRR: {rr_sum / num_samples * 100:.2f}%')
-        print(f'Reconstruction: {rec / num_samples :.2f}')
-        string = string + f'{hits_at[k] / num_samples * 100:.2f} & {rr_sum / num_samples * 100:.2f} & {rec / num_samples :.2f} & '
-
-    with open(str(save_folder) + '/eval.txt', 'a') as f:
-        f.write(f'{name} : {string} \n')
-
-    print(string)   

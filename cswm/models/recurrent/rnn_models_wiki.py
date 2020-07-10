@@ -16,7 +16,7 @@ class RNNModel(nn.Module):
 
     def __init__(self, rnn_type, ntoken, ninp, nhid, nlayers, dropout=0.5, tie_weights=False, use_cudnn_version=True,
                  use_adaptive_softmax=False, cutoffs=None, discrete_input=False, num_blocks=[6], topk=[4], do_gru=False,
-                 use_inactive=False, blocked_grad=False, layer_dilation = -1, block_dilation = -1, num_modules_read_input=2, use_rules = False, num_rules = 5, rule_time_steps = 2, use_linear = False, is_decoder = False, use_attention = False, num_rule_networks = 1):
+                 use_inactive=False, blocked_grad=False, layer_dilation = -1, block_dilation = -1, num_modules_read_input=2, use_linear = False, is_decoder = False, use_attention = False):
 
         super(RNNModel, self).__init__()
 
@@ -71,11 +71,11 @@ class RNNModel(nn.Module):
         for i in range(nlayers):
             if i==0:
                 if is_decoder and use_attention:
-                    self.bc_lst.append(BlocksCore(nhid[i] + ninp,nhid[i], num_blocks_in[i], num_blocks[i], topk[i], True, do_gru=do_gru, num_modules_read_input=num_modules_read_input, use_rules = use_rules, num_rules = num_rules, rule_time_steps = rule_time_steps, is_decoder = is_decoder, num_rule_networks = num_rule_networks))
+                    self.bc_lst.append(BlocksCore(nhid[i] + ninp,nhid[i], num_blocks_in[i], num_blocks[i], topk[i], True, do_gru=do_gru, num_modules_read_input=num_modules_read_input))
                 else:
-                    self.bc_lst.append(BlocksCore(ninp,nhid[i], num_blocks_in[i], num_blocks[i], topk[i], True, do_gru=do_gru, num_modules_read_input=num_modules_read_input, use_rules = use_rules, num_rules = num_rules, rule_time_steps = rule_time_steps, is_decoder = is_decoder, num_rule_networks = num_rule_networks))
+                    self.bc_lst.append(BlocksCore(ninp,nhid[i], num_blocks_in[i], num_blocks[i], topk[i], True, do_gru=do_gru, num_modules_read_input=num_modules_read_input))
             else:
-                self.bc_lst.append(BlocksCore(nhid[i-1],nhid[i], num_blocks_in[i], num_blocks[i], topk[i], True, do_gru=do_gru, num_modules_read_input=num_modules_read_input, use_rules = use_rules, num_rules = num_rules, rule_time_steps = rule_time_steps, is_decoder = is_decoder))
+                self.bc_lst.append(BlocksCore(nhid[i-1],nhid[i], num_blocks_in[i], num_blocks[i], topk[i], True, do_gru=do_gru, num_modules_read_input=num_modules_read_input))
         for i in range(nlayers - 1):
             self.dropout_lst.append(nn.Dropout(dropout))
 
@@ -107,7 +107,7 @@ class RNNModel(nn.Module):
             self.decoder.bias.data.zero_()
             self.decoder.weight.data.uniform_(-initrange, initrange)
 
-    def forward(self, input, hidden, calc_mask=False,  rule_network_id = 0, context_command = None, context_situation = None):
+    def forward(self, input, hidden, calc_mask=False):
         extra_loss = 0.0
 
         emb = input#self.drop(self.encoder(input))
@@ -181,9 +181,9 @@ class RNNModel(nn.Module):
                 for idx_step in range(input.shape[0]):
                     if idx_step % self.layer_dilation[idx_layer] == 0:
                         if idx_step % self.block_dilation[idx_layer] == 0:
-                            hx, cx, mask = self.bc_lst[idx_layer](layer_input[idx_step], hx, cx, idx_step, do_block = True, rule_network_id = rule_network_id)
+                            hx, cx, mask = self.bc_lst[idx_layer](layer_input[idx_step], hx, cx, idx_step, do_block = True)
                         else:
-                            hx, cx, mask = self.bc_lst[idx_layer](layer_input[idx_step], hx, cx, idx_step, do_block = False, rule_network_id = rule_network_id)
+                            hx, cx, mask = self.bc_lst[idx_layer](layer_input[idx_step], hx, cx, idx_step, do_block = False)
 
                     if idx_layer < self.nlayers - 1:
                         if self.use_inactive:

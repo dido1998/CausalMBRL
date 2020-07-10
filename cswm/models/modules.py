@@ -11,7 +11,7 @@ from . import (
     EncoderCNNSmall, EncoderCNNMedium, EncoderCNNLarge,
     DecoderCNNSmall, DecoderCNNMedium, DecoderCNNLarge)
 
-from recurrent.rnn_models_wiki import RNNModel
+from .recurrent.rnn_models_wiki import RNNModel
 
 class CausalTransitionModel(nn.Module):
     """Main module for a Causal transition model.
@@ -207,7 +207,7 @@ class CausalTransitionModel(nn.Module):
         return self.obj_encoder(self.obj_extractor(obs))
 
 class CausalTransitionModelLSTM(nn.Module):
-    """Main module for a Causal transition model.
+    """Main module for a Recurrent Causal transition model.
 
     Args:
         embedding_dim: Dimensionality of abstract state space.
@@ -215,12 +215,12 @@ class CausalTransitionModelLSTM(nn.Module):
         hidden_dim: Number of hidden units in encoder and transition model.
         action_dim: Dimensionality of action space.
         num_objects: Number of object slots.
+        rim: If False uses LSTM else RIMs (goyal et al)
     """
     def __init__(self, embedding_dim, input_dims, hidden_dim, action_dim,
                  num_objects, state_dim=32, input_shape=[3, 50, 50],
                  predict_diff=True, encoder='large', num_graphs=10,
-                 modular=False, learn_edges=False, vae=False, rim = False, 
-                 rules = False, multiplier=1):
+                 modular=False, learn_edges=False, vae=False, rim = False, multiplier=1):
 
         super(CausalTransitionModelLSTM, self).__init__()
 
@@ -321,11 +321,10 @@ class CausalTransitionModelLSTM(nn.Module):
 
             if rim == True:
                 self.rim = True
-                self.transition_nets = RNNModel('LSTM', self.embedding_dim + self.num_objects * self.action_dim, self.embedding_dim + self.num_objects * self.action_dim, [400], 1,  num_blocks = [5], topk = [3], use_rules = rules)
+                self.transition_nets = RNNModel('LSTM', self.embedding_dim + self.num_objects * self.action_dim, self.embedding_dim + self.num_objects * self.action_dim, [400], 1,  num_blocks = [5], topk = [3])
                 self.transition_linear = nn.Linear(400, self.embedding_dim)
             else:
                 self.transition_nets = nn.LSTMCell(self.embedding_dim + self.num_objects * self.action_dim, 512)
-                print('LSTM')
                 self.transition_linear = nn.Linear(512, self.embedding_dim)
 
         self.encoder = nn.Sequential(OrderedDict(
@@ -382,11 +381,11 @@ class CausalTransitionModelLSTM(nn.Module):
         if self.rim:
             x = x.unsqueeze(0)
 
-            x, hidden, _,_,_,_,_ = self.transition_nets(x, hidden.detach())
+            x, hidden, _,_,_,_,_ = self.transition_nets(x, hidden)
             x = x.squeeze(0)
             x = self.transition_linear(x)
         else:
-            h, c = self.transition_nets(x, hidden.detach())
+            h, c = self.transition_nets(x, hidden)
             x = self.transition_linear(h)
         if self.predict_diff:
             x = x + x_orig
@@ -394,7 +393,7 @@ class CausalTransitionModelLSTM(nn.Module):
             loss = self.mse_loss(x, next_state)
             return x, hidden, loss
         else:
-            return x, hidden, None
+            return x, hidden
 
     def forward(self, obs):
         return self.obj_encoder(self.obj_extractor(obs))
@@ -468,8 +467,19 @@ class ContrastiveSWM(nn.Module):
         self.height = width_height[1]
 
         self.encoder = nn.Sequential(OrderedDict(
-            obj_extractor=obj_extractor,
-            obj_encoder=obj_encoder))
+            obj_extractor=self.obj_extractor,
+            obj_encoder=self.obj_encoder))
+    def encoder_parameters(self):
+        return self.encoder.parameters()
+    
+    def transition_parameters(self):
+        return self.transition_model.parameters()
+
+    def transition(self, pred_state, action):
+        # Added for compatibility 
+        action = torch.argmax(action, dim = 1)
+        
+        return self.transition_model(pred_state, action) + pred_state
 
     def energy(self, state, action, next_state, no_trans=False):
         """Energy function based on normalized squared L2 norm."""
@@ -492,6 +502,9 @@ class ContrastiveSWM(nn.Module):
         return enc, 0.0
 
     def contrastive_loss(self, obs, action, next_obs):
+
+        # Added for compatibility
+        action = torch.argmax(action, dim = 1)
 
         objs = self.obj_extractor(obs)
         next_objs = self.obj_extractor(next_obs)

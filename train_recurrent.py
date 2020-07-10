@@ -17,7 +17,7 @@ import torch.nn.functional as F
 import torchvision
 
 from cswm import utils
-from cswm.models import modules_causal_baseline
+from cswm.models.modules import CausalTransitionModelLSTM
 from cswm.utils import OneHot
 
 
@@ -152,7 +152,7 @@ dataset = utils.LSTMDataset(
     hdf5_file=args.dataset, action_transform=OneHot(args.num_objects * args.action_dim))
 train_loader = data.DataLoader(
     dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-model = modules_causal_baseline.CausalTransitionModelLSTM(
+model = CausalTransitionModelLSTM(
     embedding_dim=args.embedding_dim,
     hidden_dim=args.hidden_dim,
     action_dim=args.action_dim,
@@ -165,8 +165,7 @@ model = modules_causal_baseline.CausalTransitionModelLSTM(
     vae=args.vae,
     num_objects=args.num_objects,
     encoder=args.encoder, 
-    rim = args.rim, 
-    rules = args.rules).to(device)
+    rim = args.rim).to(device)
 
 model.apply(utils.weights_init)
 
