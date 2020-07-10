@@ -124,14 +124,14 @@ def observed_colors(num_colors, mode):
 def unobserved_colors(cmap, num_colors, mode, new_colors=None):
     if mode == 'Train':
         cm, length = get_cmap(cmap, mode)
-        weights = np.random.choice(length, num_colors, replace=False)
+        weights = np.sort(np.random.choice(length, num_colors, replace=False))
         colors = [cm(i/length) for i in weights]
     else:
         cm, length = get_cmap(cmap, mode)
         cm1, cm2 = cm
         length1, length2 = length
         l = length1 + len(new_colors)
-        w = np.random.choice(l, num_colors, replace=False)
+        w = np.sort(np.random.choice(l, num_colors, replace=False))
         colors = []
         weights = []
         for i in w:
@@ -360,9 +360,6 @@ def evaluate(model, loader, *,
             state,_ = model.encode(obs)
             next_state,_ = model.encode(next_obs)
 
-            #state = model.obj_encoder(model.obj_extractor(obs))
-            #next_state = model.obj_encoder(model.obj_extractor(next_obs))
-
             pred_state = state
             for i in range(num_steps):
                 pred_state = model.transition(pred_state, actions[i])
@@ -455,17 +452,11 @@ def evaluate_lstm(model, loader, *,
                           for tensor in data_batch]
             observations, actions = data_batch
 
-            
-                
-
             obs = observations[0]
             next_obs = observations[-1]
 
             state,_ = model.encode(obs)
             next_state,_ = model.encode(next_obs)
-
-            #state = model.obj_encoder(model.obj_extractor(obs))
-            #next_state = model.obj_encoder(model.obj_extractor(next_obs))
 
             pred_state = state
             if hidden_dim == 512:
@@ -571,9 +562,6 @@ def evaluate_cswm(model, decoder, loader, *,
             obs = observations[0]
             next_obs = observations[-1]
 
-            #state,_ = model.encode(obs)
-            #next_state,_ = model.encode(next_obs)
-
             state = model.obj_encoder(model.obj_extractor(obs))
             next_state = model.obj_encoder(model.obj_extractor(next_obs))
 
@@ -595,9 +583,7 @@ def evaluate_cswm(model, decoder, loader, *,
                 save_image(obs[:16], str(save_folder) + f'/Figures/{name}/true_original_{num_steps}.png', pad_value=1.0, nrow=4)
                 save_image(next_obs[:16], str(save_folder) +  f'/Figures/{name}/true_step_{num_steps}.png', pad_value=1.0, nrow=4)
                 save_image(rec_orig[:16], str(save_folder) +  f'/Figures/{name}/rec_orig_{num_steps}.png', pad_value=1.0, nrow=4)
-                save_image(rec_obs[:16], str(save_folder) +  f'/Figures/{name}/rec_step_{num_steps}.png', pad_value=1.0, nrow=4)
-
-            
+                save_image(rec_obs[:16], str(save_folder) +  f'/Figures/{name}/rec_step_{num_steps}.png', pad_value=1.0, nrow=4)            
 
             pred_states.append(pred_state.cpu())
             next_states.append(next_state.cpu())

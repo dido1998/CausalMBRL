@@ -132,6 +132,7 @@ else:
 
 meta_file = save_folder / 'metadata.pkl'
 model_file = save_folder / 'model.pt'
+finetune_file = save_folder / 'finetuned_model.pt'
 reload_file = args.reload_folder / 'model.pt'
 
 log_file = save_folder / 'log.txt'
@@ -163,13 +164,12 @@ model = modules_causal_baseline.CausalTransitionModelLSTM(
     learn_edges=args.learn_edges,
     vae=args.vae,
     num_objects=args.num_objects,
-    encoder=args.encoder, rim = args.rim, rules = args.rules ).to(device)
+    encoder=args.encoder, 
+    rim = args.rim, 
+    rules = args.rules).to(device)
 
 model.apply(utils.weights_init)
 
-#struct_optimizer = torch.optim.Adam(
-#        model.structural_parameters(),
-#        lr=args.s_lr)
 if args.rim:
     args.hidden_dim = 600
 
@@ -188,7 +188,6 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
     optimizer = torch.optim.Adam(parameters, lr=lr)
 
     print('Starting model training...')
-    step = 0
     best_loss = 1e9
     for epoch in range(1, max_epochs + 1):
         model.train()
@@ -209,75 +208,61 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
             obs = torch.split(obs, 1, dim = 0)
             action = torch.split(action, 1,  dim = 0)
 
-
             optimizer.zero_grad()
-            #struct_optimizer.zero_grad()
+
             if not args.rim:
                 hidden = (torch.rand(obs[0].squeeze(0).size(0), args.hidden_dim).cuda(), torch.rand(obs[0].squeeze(0).size(0), args.hidden_dim).cuda())
             else:
                 hidden = model.transition_nets.init_hidden(obs[0].squeeze(0).size(0))
-            loss = 0
+
+            loss = 0.0
+
             for j in range(len(obs) - 1):
 
                 state, kl_loss = model.encode(obs[j].squeeze(0))
 
+                if train_encoder or train_decoder:
+                    rec_state = torch.sigmoid(model.decoder(state))
+                    loss += (F.binary_cross_entropy(
+                        rec_state, obs[j], reduction='sum') + kl_loss)
+
                 if train_transition:
                     next_state, _ = model.encode(obs[j+1].squeeze(0))
 
-                    _,hidden, ls  = model.transition(
+                    _, hidden, ls = model.transition(
                         state, action[j].squeeze(0), hidden, next_state)
+
                     loss += ls
-                else:
-                    rec_state = torch.sigmoid(model.decoder(state))
-                    loss = (F.binary_cross_entropy(
-                        rec_state, obs[j].squeeze(0), reduction='sum') + kl_loss)/ obs[j].squeeze(0).size(0)
-            loss = loss / len(obs)
+
+                    if train_encoder and train_decoder:
+                        loss += F.binary_cross_entropy(torch.sigmoid(model.decoder(next_state)), obs[j+1],
+                                        reduction='sum')
+
+                loss /= obs[j].squeeze(0).size(0)
+
             loss.backward()
 
             train_loss += loss.item()
 
-            #if train_transition and model.learn_edges:
-            #    if (batch_idx // args.update_interval) % 2 ==0:
-            #        # udpate functional parameters only
-            #        struct_optimizer.zero_grad()
-            #    else:
-            #        optimizer.zero_grad()
-            #        # manually define grad for gamma params
-            #        model.gamma.grad = torch.zeros_like(model.gamma)
-            #        model.gamma.grad.copy_(dRdgamma)
-            #        struct_optimizer.step()
-
-            # update parameters
             optimizer.step()
 
-            if batch_idx % args.log_interval == 0:
+            if batch_idx % args.log_interval == 0 and batch_idx > 0:
                 iterator.set_postfix(loss=f'{train_loss / (1 + batch_idx):.6f}')
                 print(
-                    'Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                        epoch, batch_idx * len(data_batch[0]),
+                    'Epoch: {} [ {}/{} ] \t Loss: {:.6f}'.format(
+                        epoch, (batch_idx+1),
                         len(train_loader.dataset),
-                        100. * batch_idx / len(train_loader),
                         loss.item()))
-
-            step += 1
 
         avg_loss = train_loss / len(train_loader)
         print('====> Epoch: {} Average loss: {:.6f}'.format(
             epoch, avg_loss))
 
-        #evaluate(model_file, valid_loader, train_transition)
+        # Add Validation
 
-        #siggamma = model.gamma.sigmoid()
-        #print('Gamma: ' + os.linesep+str(siggamma))
-        ##if train_transition:
-        #    #print(dRdgamma)
         if avg_loss < best_loss:
             best_loss = avg_loss
             torch.save(model.state_dict(), model_file)
-
-"""
-vault/2020-06-05/10:36:49+AE+6281/lstm_5-large-5
-"""
 
 def reload_model(model, filename):
     #only reloading encoder
@@ -300,12 +285,12 @@ def reload_model(model, filename):
 if args.reload:
     if os.path.isfile(reload_file):
         reload_model(model, reload_file)
-        #evaluate(model_file, train_loader, False)
     else:
         print (str(reload_file) + "File not exist")
 
 train(args.pretrain_epochs, model_file, lr=args.lr, train_encoder=True, train_transition=False, train_decoder=True)
 train(args.epochs, model_file, lr=args.transit_lr, train_encoder=False, train_transition=True, train_decoder=False)
+train(args.epochs, finetune_file, lr=args.lr, train_encoder=True, train_transition=True, train_decoder=True)
 
 if args.eval_dataset is not None:
     utils.eval_steps_lstm(

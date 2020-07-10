@@ -48,10 +48,10 @@ class CausalTransitionModel(nn.Module):
         width_height = input_dims[1:]
 
         if self.modular:
-            self.embedding_dim = embedding_dim // num_objects
+            self.embedding_dim = embedding_dim
             flat = False
         else:
-            self.embedding_dim = embedding_dim
+            self.embedding_dim = embedding_dim * num_objects
             flat = True
 
         if encoder == 'small':
@@ -208,193 +208,6 @@ class CausalTransitionModel(nn.Module):
     def forward(self, obs):
         return self.obj_encoder(self.obj_extractor(obs))
 
-
-class CausalTransition(nn.Module):
-    """MLP encoder, maps observation to latent state."""
-
-    def __init__(self, input_dim, output_dim, hidden_dim,
-                 num_objects, num_actions,
-                 action_embed_dim=128, act_fn='relu'):
-        super(CausalTransition, self).__init__()
-        self.num_actions = num_actions
-        self.action_embed_dim = action_embed_dim
-        self.input_dim = input_dim + self.action_embed_dim
-        self.fc1 = nn.Linear(self.input_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc3 = nn.Linear(hidden_dim, output_dim)
-        self.num_objects = num_objects
-        self.act_fc1 = nn.Linear(
-                    self.num_actions, self.action_embed_dim)
-
-        self.ln = nn.LayerNorm(hidden_dim)
-
-        self.act1 = utils.get_act_fn(act_fn)
-        self.act2 = utils.get_act_fn(act_fn)
-
-    def forward(self, ins, action):
-        h_flat = ins.view(ins.shape[0], -1)
-        act_embed = self.act_fc1(action)
-        h_flat = torch.cat((h_flat, act_embed), -1)
-        h = self.act1(self.fc1(h_flat))
-        h = self.act2(self.ln(self.fc2(h)))
-        h = self.fc3(h)
-        return h
-
-
-class MLPTransition(nn.Module):
-    def __init__(self, state_dim, num_actions, hidden_dim, output_dim):
-        super().__init__()
-        self.num_actions = num_actions
-        self.state_dim = state_dim
-        self.hidden_dim = hidden_dim
-        
-        self.action_encoder = nn.Linear(num_actions, hidden_dim)
-        self.state_encoder = nn.Linear(state_dim, hidden_dim)
-        self.output_dim = output_dim
-        self.decoder = nn.Sequential(OrderedDict(
-            activation0=nn.ReLU(),
-            layer1=nn.Linear(2 * hidden_dim, hidden_dim),
-            norm1=nn.LayerNorm(hidden_dim),
-            activation1=nn.ReLU(),
-            layer2=nn.Linear(hidden_dim, hidden_dim * 2),
-            norm2=nn.LayerNorm(hidden_dim * 2),
-            activation2=nn.ReLU(),
-            out_layer=nn.Linear(hidden_dim * 2, output_dim)
-        ))
-
-    def forward(self, state, action, params=None):
-        return self.decoder(torch.cat([
-            self.action_encoder(action),
-            self.state_encoder(state)
-        ], dim=1))
-
-
-class EncoderMLP(nn.Module):
-    """MLP encoder, maps observation to latent state."""
-
-    def __init__(self, input_dim, output_dim, hidden_dim, num_objects,
-                 flatten_input=False, act_fn='relu'):
-        super(EncoderMLP, self).__init__()
-
-        self.num_objects = num_objects
-        self.input_dim = input_dim
-        self.flatten_input = flatten_input
-
-        self.fc1 = nn.Linear(self.input_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc3 = nn.Linear(hidden_dim, output_dim)
-
-        self.ln = nn.LayerNorm(hidden_dim)
-
-        self.act1 = utils.get_act_fn(act_fn)
-        self.act2 = utils.get_act_fn(act_fn)
-
-    def forward(self, ins):
-        if self.flatten_input:
-            h_flat = ins.view(ins.shape[0], -1)
-        else:
-            h_flat = ins.view(-1, self.num_objects, self.input_dim)
-        h = self.act1(self.fc1(h_flat))
-        h = self.act2(self.ln(self.fc2(h)))
-        return self.fc3(h)
-
-
-class DecoderMLP(nn.Module):
-    """MLP decoder, maps latent state to image."""
-
-    def __init__(self, input_dim, hidden_dim, num_objects, output_size,
-                 act_fn='relu'):
-        super(DecoderMLP, self).__init__()
-
-        self.fc1 = nn.Linear(input_dim + num_objects, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc3 = nn.Linear(hidden_dim, np.prod(output_size))
-
-        self.input_dim = input_dim
-        self.num_objects = num_objects
-        self.output_size = output_size
-
-        self.act1 = utils.get_act_fn(act_fn)
-        self.act2 = utils.get_act_fn(act_fn)
-
-    def forward(self, ins):
-        obj_ids = torch.arange(self.num_objects)
-        obj_ids = utils.to_one_hot(obj_ids, self.num_objects).unsqueeze(0)
-        obj_ids = obj_ids.repeat((ins.size(0), 1, 1)).to(ins.get_device())
-
-        h = torch.cat((ins, obj_ids), -1)
-        h = self.act1(self.fc1(h))
-        h = self.act2(self.fc2(h))
-        h = self.fc3(h).sum(1)
-        return h.view(-1, self.output_size[0], self.output_size[1],
-                      self.output_size[2])
-
-
-class DecoderCNNSmall1(nn.Module):
-    """CNN decoder, maps latent state to image."""
-
-    def __init__(self, input_dim, hidden_dim, num_objects, output_size,
-                 act_fn='relu', flat_state=False):
-        super(DecoderCNNSmall1, self).__init__()
-
-        width, height = output_size[1] // 10, output_size[2] // 10
-
-        if flat_state:
-            output_dim = num_objects * width * height
-        else:
-            output_dim = width * height
-
-        self.input_dim = input_dim
-        self.num_objects = num_objects
-        self.map_size = output_size[0], width, height
-
-        self.network = nn.Sequential(OrderedDict(
-            fc1=nn.Linear(input_dim, hidden_dim),
-            act1=utils.get_act_fn(act_fn),
-            fc2=nn.Linear(hidden_dim, hidden_dim),
-            ln=nn.LayerNorm(hidden_dim),
-            act2=utils.get_act_fn(act_fn),
-            fc3=nn.Linear(hidden_dim, output_dim),
-            view=View(self.num_objects, width, height),
-            deconv1=nn.ConvTranspose2d(num_objects, hidden_dim,
-                                       kernel_size=1, stride=1),
-            act3=utils.get_act_fn(act_fn),
-            deconv2=nn.ConvTranspose2d(hidden_dim, output_size[0],
-                                       kernel_size=10, stride=10)
-        ))
-
-    def forward(self, ins):
-        return self.network(ins)
-
-
-class CausalLSTM(nn.Module):
-    def __init__(self, embedding_dim, input_dims, hidden_dim, action_dim,
-                 num_objects, state_dim=32, input_shape=[3, 50, 50],
-                 predict_diff=True, encoder='large', num_graphs=10,
-                 modular=False, learn_edges=False, vae=False):
-        super().__init__()
-        model = CausalTransitionModel(
-            embedding_dim=args.embedding_dim,
-            hidden_dim=args.hidden_dim,
-            action_dim=args.action_dim,
-            input_dims=input_shape,
-            input_shape=input_shape,
-            num_graphs=args.num_graphs,
-            modular=args.modular,
-            predict_diff=args.predict_diff,
-            learn_edges=args.learn_edges,
-            vae=args.vae,
-            num_objects=args.num_objects,
-            encoder=args.encoder).cuda()
-        if modular == False:
-            input_size = 32
-        else:
-            input_size = 25
-        self.lstm = nn.LSTM(input_size, 300)
-
-
-
-
 class CausalTransitionModelLSTM(nn.Module):
     """Main module for a Causal transition model.
 
@@ -421,7 +234,6 @@ class CausalTransitionModelLSTM(nn.Module):
         self.predict_diff = predict_diff
         self.num_graphs = num_graphs
         self.vae = vae
-
 
         self.mse_loss = torch.nn.MSELoss(reduction='none')
 
@@ -506,6 +318,7 @@ class CausalTransitionModelLSTM(nn.Module):
                     output_dim=self.embedding_dim,
                     hidden_dim=hidden_dim, num_objects=num_objects,
                     flatten_input=True)
+            
             self.rim = False
             if rim == True:
                 self.rim = True
@@ -562,95 +375,9 @@ class CausalTransitionModelLSTM(nn.Module):
         else:
             return enc, 0.0
 
-    def graph_sample(self, batch_size):
-        # need to sample a batch
-        gammaexp_batch = []
-        if self.learn_edges:
-            for batch_itr in range(batch_size):
-                with torch.no_grad():
-                    gammaexp = self.gamma.sigmoid()
-                    gammaexp = torch.empty_like(gammaexp).uniform_().lt_(gammaexp)
-                    gammaexp += torch.eye(self.num_objects).cuda()
-                    gammaexp_batch.append(gammaexp)
-            return torch.stack(gammaexp_batch).cuda()
-        else:
-            gammaexp = torch.ones([self.num_objects,self.num_objects])
-            #gammaexp.diagonal().ones_()
-            #gammaexp = torch.eye(self.num_objects)
-            gammaexp = gammaexp.unsqueeze(0)
-            gammaexp = gammaexp.repeat(batch_size, 1, 1)
-            return gammaexp.cuda()
-
-    def causal_model(self, state, action, next_state=None):
-        # iterate through all M MLPs
-        # if no learned edges, then no need to learn gamma
-
-        gamma_itr = 1
-        if self.learn_edges:
-            gamma_itr = self.num_graphs
-        
-        gammaexp = self.graph_sample(gamma_itr)
-        gammagrads = []
-        loss = []
-        gamma_losses = []
-        # TODO: if not learning edges: then only iterate once!
-
-        for gamma_i in range(gamma_itr):
-            pred_next_state = []
-            for i in range(self.num_objects):
-                ins = gammaexp[gamma_i,:,i].view(1, -1, 1) * state
-                ins = ins.reshape(ins.shape[0], -1)
-                #ins = state.reshape(state.shape[0], -1)
-                pred_ = self.transition_nets[i](ins, action)
-                pred_next_state.append(pred_)
-
-            pred_next_state = torch.stack(pred_next_state)
-            pred_next_state = pred_next_state.permute(1, 0, 2)
-
-            if self.predict_diff:
-                pred_next_state += state
-
-            if next_state is not None:
-                mse_loss = self.mse_loss(pred_next_state, next_state)
-                mse_loss = torch.stack(tuple(mse_loss.mean(-1).mean(0)))
-                loss.append(mse_loss)
-
-            if self.learn_edges:
-                gammagrads.append(self.gamma.sigmoid() - gammaexp[gamma_i])
-
-        if next_state is None:
-            loss = None
-        else:
-            loss = torch.stack(loss)
-        dRdgamma = torch.zeros([self.num_objects, self.num_objects])
-
-        if self.learn_edges and next_state is not None:
-            gammagrads = torch.stack(gammagrads)
-            norm_loss = loss.softmax(0)
-            dRdgamma = torch.einsum("kij,ki->ij", gammagrads, norm_loss)
-
-        return loss, dRdgamma, pred_next_state
-
     def transition(self, state, action, hidden, next_state=None):
-        """if self.modular:
-            # learned causal model
-            loss, dRdgamma, pred_next_state = self.causal_model(
-                state, action, next_state)
-        if not self.modular and not self.learn_edges:
-            # baseline MLP
-            pred_next_state = self.transition_nets(state=state, action=action)
-            if self.predict_diff:
-                pred_next_state += state
-            dRdgamma = None
-            if next_state is None:
-                loss = None
-            else:
-                loss = self.mse_loss(pred_next_state, next_state)
+        # Modular RIM something
 
-        if next_state is None:
-            return pred_next_state
-        else:
-            return loss.mean(), dRdgamma, pred_next_state"""
         x_orig = state
         x = torch.cat((state, action), dim =1)
         if self.rim:
@@ -670,9 +397,324 @@ class CausalTransitionModelLSTM(nn.Module):
         else:
             return x, hidden
 
+    def forward(self, obs):
+        return self.obj_encoder(self.obj_extractor(obs))
 
+class ContrastiveSWM(nn.Module):
+    """Main module for a Contrastively-trained Structured World Model (C-SWM).
+    Args:
+        embedding_dim: Dimensionality of abstract state space.
+        input_dims: Shape of input observation.
+        hidden_dim: Number of hidden units in encoder and transition model.
+        action_dim: Dimensionality of action space.
+        num_objects: Number of object slots.
+    """
+    def __init__(self, embedding_dim, input_dims, hidden_dim, action_dim,
+                 num_objects, hinge=1., sigma=0.5, encoder='large',
+                 ignore_action=False, copy_action=False):
+        super(ContrastiveSWM, self).__init__()
 
+        self.hidden_dim = hidden_dim
+        self.embedding_dim = embedding_dim
+        self.action_dim = action_dim
+        self.num_objects = num_objects
+        self.hinge = hinge
+        self.sigma = sigma
+        self.ignore_action = ignore_action
+        self.copy_action = copy_action
+        
+        self.pos_loss = 0
+        self.neg_loss = 0
 
+        num_channels = input_dims[0]
+        width_height = input_dims[1:]
+
+        if encoder == 'small':
+            self.obj_extractor = EncoderCNNSmall(
+                input_dim=num_channels,
+                hidden_dim=hidden_dim // 16,
+                num_objects=num_objects)
+            # CNN image size changes
+            width_height = np.array(width_height)
+            width_height = width_height // 10
+        elif encoder == 'medium':
+            self.obj_extractor = EncoderCNNMedium(
+                input_dim=num_channels,
+                hidden_dim=hidden_dim // 16,
+                num_objects=num_objects)
+            # CNN image size changes
+            width_height = np.array(width_height)
+            width_height = width_height // 5
+        elif encoder == 'large':
+            self.obj_extractor = EncoderCNNLarge(
+                input_dim=num_channels,
+                hidden_dim=hidden_dim // 16,
+                num_objects=num_objects)
+
+        self.obj_encoder = EncoderMLP(
+            input_dim=np.prod(width_height),
+            hidden_dim=hidden_dim,
+            output_dim=embedding_dim,
+            num_objects=num_objects)
+
+        self.transition_model = TransitionGNN(
+            input_dim=embedding_dim,
+            hidden_dim=hidden_dim,
+            action_dim=action_dim,
+            num_objects=num_objects,
+            ignore_action=ignore_action,
+            copy_action=copy_action)
+
+        self.width = width_height[0]
+        self.height = width_height[1]
+
+    def energy(self, state, action, next_state, no_trans=False):
+        """Energy function based on normalized squared L2 norm."""
+
+        norm = 0.5 / (self.sigma**2)
+
+        if no_trans:
+            diff = state - next_state
+        else:
+            pred_trans = self.transition_model(state, action)
+            diff = state + pred_trans - next_state
+
+        return norm * diff.pow(2).sum(2).mean(1)
+
+    def transition_loss(self, state, action, next_state):
+        return self.energy(state, action, next_state).mean()
+
+    def contrastive_loss(self, obs, action, next_obs):
+
+        objs = self.obj_extractor(obs)
+        next_objs = self.obj_extractor(next_obs)
+
+        state = self.obj_encoder(objs)
+        next_state = self.obj_encoder(next_objs)
+
+        # Sample negative state across episodes at random
+        batch_size = state.size(0)
+        perm = np.random.permutation(batch_size)
+        neg_state = state[perm]
+
+        self.pos_loss = self.energy(state, action, next_state)
+        zeros = torch.zeros_like(self.pos_loss)
+        
+        self.pos_loss = self.pos_loss.mean()
+        self.neg_loss = torch.max(
+            zeros, self.hinge - self.energy(
+                state, action, neg_state, no_trans=True)).mean()
+
+        loss = self.pos_loss + self.neg_loss
+
+        return loss
 
     def forward(self, obs):
         return self.obj_encoder(self.obj_extractor(obs))
+
+
+class TransitionGNN(torch.nn.Module):
+    """GNN-based transition function."""
+    def __init__(self, input_dim, hidden_dim, action_dim, num_objects,
+                 ignore_action=False, copy_action=False, act_fn='relu'):
+        super(TransitionGNN, self).__init__()
+
+        self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+        self.num_objects = num_objects
+        self.ignore_action = ignore_action
+        self.copy_action = copy_action
+
+        if self.ignore_action:
+            self.action_dim = 0
+        else:
+            self.action_dim = action_dim
+
+        self.edge_mlp = nn.Sequential(
+            nn.Linear(input_dim*2, hidden_dim),
+            utils.get_act_fn(act_fn),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            utils.get_act_fn(act_fn),
+            nn.Linear(hidden_dim, hidden_dim))
+
+        node_input_dim = hidden_dim + input_dim + self.action_dim
+
+        self.node_mlp = nn.Sequential(
+            nn.Linear(node_input_dim, hidden_dim),
+            utils.get_act_fn(act_fn),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            utils.get_act_fn(act_fn),
+            nn.Linear(hidden_dim, input_dim))
+
+        self.edge_list = None
+        self.batch_size = 0
+
+    def _edge_model(self, source, target, edge_attr):
+        del edge_attr  # Unused.
+        out = torch.cat([source, target], dim=1)
+        return self.edge_mlp(out)
+
+    def _node_model(self, node_attr, edge_index, edge_attr):
+        if edge_attr is not None:
+            row, col = edge_index
+            agg = utils.unsorted_segment_sum(
+                edge_attr, row, num_segments=node_attr.size(0))
+            out = torch.cat([node_attr, agg], dim=1)
+        else:
+            out = node_attr
+        return self.node_mlp(out)
+
+    def _get_edge_list_fully_connected(self, batch_size, num_objects, cuda):
+        # Only re-evaluate if necessary (e.g. if batch size changed).
+        if self.edge_list is None or self.batch_size != batch_size:
+            self.batch_size = batch_size
+
+            # Create fully-connected adjacency matrix for single sample.
+            adj_full = torch.ones(num_objects, num_objects)
+
+            # Remove diagonal.
+            adj_full -= torch.eye(num_objects)
+            self.edge_list = adj_full.nonzero()
+
+            # Copy `batch_size` times and add offset.
+            self.edge_list = self.edge_list.repeat(batch_size, 1)
+            offset = torch.arange(
+                0, batch_size * num_objects, num_objects).unsqueeze(-1)
+            offset = offset.expand(batch_size, num_objects * (num_objects - 1))
+            offset = offset.contiguous().view(-1)
+            self.edge_list += offset.unsqueeze(-1)
+
+            # Transpose to COO format -> Shape: [2, num_edges].
+            self.edge_list = self.edge_list.transpose(0, 1)
+
+            if cuda:
+                self.edge_list = self.edge_list.cuda()
+
+        return self.edge_list
+
+    def forward(self, states, action):
+
+        cuda = states.is_cuda
+        batch_size = states.size(0)
+        num_nodes = states.size(1)
+
+        # states: [batch_size (B), num_objects, embedding_dim]
+        # node_attr: Flatten states tensor to [B * num_objects, embedding_dim]
+        node_attr = states.view(-1, self.input_dim)
+
+        edge_attr = None
+        edge_index = None
+
+        if num_nodes > 1:
+            # edge_index: [B * (num_objects*[num_objects-1]), 2] edge list
+            edge_index = self._get_edge_list_fully_connected(
+                batch_size, num_nodes, cuda)
+
+            row, col = edge_index
+            edge_attr = self._edge_model(
+                node_attr[row], node_attr[col], edge_attr)
+
+        if not self.ignore_action:
+
+            if self.copy_action:
+                action_vec = utils.to_one_hot(
+                    action, self.action_dim).repeat(1, self.num_objects)
+                action_vec = action_vec.view(-1, self.action_dim)
+            else:
+                action_vec = utils.to_one_hot(
+                    action, self.action_dim * num_nodes)
+                action_vec = action_vec.view(-1, self.action_dim)
+
+            # Attach action to each state
+            node_attr = torch.cat([node_attr, action_vec], dim=-1)
+
+        node_attr = self._node_model(
+            node_attr, edge_index, edge_attr)
+
+        # [batch_size, num_nodes, hidden_dim]
+        return node_attr.view(batch_size, num_nodes, -1)
+
+class MLPTransition(nn.Module):
+    def __init__(self, state_dim, num_actions, hidden_dim, output_dim):
+        super().__init__()
+        self.num_actions = num_actions
+        self.state_dim = state_dim
+        self.hidden_dim = hidden_dim
+        
+        self.action_encoder = nn.Linear(num_actions, hidden_dim)
+        self.state_encoder = nn.Linear(state_dim, hidden_dim)
+        self.output_dim = output_dim
+        self.decoder = nn.Sequential(OrderedDict(
+            activation0=nn.ReLU(),
+            layer1=nn.Linear(2 * hidden_dim, hidden_dim),
+            norm1=nn.LayerNorm(hidden_dim),
+            activation1=nn.ReLU(),
+            layer2=nn.Linear(hidden_dim, hidden_dim * 2),
+            norm2=nn.LayerNorm(hidden_dim * 2),
+            activation2=nn.ReLU(),
+            out_layer=nn.Linear(hidden_dim * 2, output_dim)
+        ))
+
+    def forward(self, state, action, params=None):
+        return self.decoder(torch.cat([
+            self.action_encoder(action),
+            self.state_encoder(state)
+        ], dim=1))
+
+
+class EncoderMLP(nn.Module):
+    """MLP encoder, maps observation to latent state."""
+
+    def __init__(self, input_dim, output_dim, hidden_dim, num_objects,
+                 flatten_input=False, act_fn='relu'):
+        super(EncoderMLP, self).__init__()
+
+        self.num_objects = num_objects
+        self.input_dim = input_dim
+        self.flatten_input = flatten_input
+
+        self.fc1 = nn.Linear(self.input_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+        self.fc3 = nn.Linear(hidden_dim, output_dim)
+
+        self.ln = nn.LayerNorm(hidden_dim)
+
+        self.act1 = utils.get_act_fn(act_fn)
+        self.act2 = utils.get_act_fn(act_fn)
+
+    def forward(self, ins):
+        if self.flatten_input:
+            h_flat = ins.view(ins.shape[0], -1)
+        else:
+            h_flat = ins.view(-1, self.num_objects, self.input_dim)
+        h = self.act1(self.fc1(h_flat))
+        h = self.act2(self.ln(self.fc2(h)))
+        return self.fc3(h)
+
+class RewardPredictor(nn.Module):
+
+    def __init__(self):
+        super(RewardPredictor, self).__init__()
+
+        self.model = nn.Sequential(
+            nn.Conv2d(3, 16, (3,3)),
+            nn.ReLU(),
+            nn.MaxPool2d((2, 2)),
+            nn.Conv2d(16, 32, (3, 3)),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, (3, 3)),
+            nn.ReLU(),
+            nn.Conv2d(64, 128, (3, 3), stride=2),
+            nn.ReLU(),
+            nn.Conv2d(128, 256, (3,3), stride=2),
+            nn.ReLU(),
+            nn.Conv2d(256, 512, (3,3), stride=2),
+            nn.ReLU(),
+            Flatten(),
+            nn.Linear(512, 1)
+        )
+
+    def forward(self, x):
+        return self.model(x)

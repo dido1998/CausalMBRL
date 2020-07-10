@@ -17,7 +17,8 @@ import torch.nn.functional as F
 import torchvision
 
 from cswm import utils
-from cswm.models import modules_causal_baseline
+from cswm.models.modules import CausalTransitionModel, ContrastiveSWM
+
 from cswm.utils import OneHot
 
 
@@ -38,6 +39,7 @@ parser.add_argument('--update-interval', type=int, default=10,
                     help='update interval for structural params.')
 parser.add_argument('--encoder', type=str, default='small',
                     help='Object extractor CNN size (e.g., `small`).')
+parser.add_argument('--multiplier', type=int, default=1)
 
 parser.add_argument('--sigma', type=float, default=0.5,
                     help='Energy scale.')
@@ -53,7 +55,7 @@ parser.add_argument('--predict-diff', action='store_true',
                     help='Do we predict the difference of current and next state?')
 parser.add_argument('--hidden-dim', type=int, default=512,
                     help='Number of hidden units in transition MLP.')
-parser.add_argument('--embedding-dim', type=int, default=2,
+parser.add_argument('--embedding-dim', type=int, default=5,
                     help='Dimensionality of embedding.')
 parser.add_argument('--action-dim', type=int, default=4,
                     help='Dimensionality of action space.')
@@ -130,6 +132,7 @@ else:
 
 meta_file = save_folder / 'metadata.pkl'
 model_file = save_folder / 'model.pt'
+finetune_file = save_folder / 'finetuned_model.pt'
 reload_file = args.reload_folder / 'model.pt'
 
 log_file = save_folder / 'log.txt'
@@ -161,7 +164,7 @@ obs = next(iter(train_loader))[0]
 input_shape = obs[0].size()
 
 
-model = modules_causal_baseline.CausalTransitionModel(
+model = CausalTransitionModel(
     embedding_dim=args.embedding_dim,
     hidden_dim=args.hidden_dim,
     action_dim=args.action_dim,
@@ -173,14 +176,19 @@ model = modules_causal_baseline.CausalTransitionModel(
     learn_edges=args.learn_edges,
     vae=args.vae,
     num_objects=args.num_objects,
-    encoder=args.encoder).to(device)
+    encoder=args.encoder,
+    multiplier=args.multiplier).to(device)
 
 model.apply(utils.weights_init)
 
-#struct_optimizer = torch.optim.Adam(
-#        model.structural_parameters(),
-#        lr=args.s_lr)
+num_enc = sum(p.numel() for p in model.encoder_parameters())
+num_dec = sum(p.numel() for p in model.decoder_parameters())
+num_tr = sum(p.numel() for p in model.transition_parameters())
 
+print(f'Number of parameters in Encoder: {num_enc}')
+print(f'Number of parameters in Decoder: {num_dec}')
+print(f'Number of parameters in Transition: {num_tr}')
+print(f'Number of parameters: {num_enc+num_dec+num_tr}')
 
 def evaluate(model_file, valid_loader, eval_transition):
     model.eval()
@@ -190,21 +198,34 @@ def evaluate(model_file, valid_loader, eval_transition):
         data_batch = [tensor.to(device) for tensor in data_batch]
         obs, action, next_obs = data_batch
         state, kl_loss = model.encode(obs)
-        if eval_transition:
-            next_state, _ = model.encode(next_obs)
-            loss, dRdgamma, _ = model.transition(
-                                        state, action, next_state)
-        else:
+
+        loss = 0.0
+
+        if train_encoder or train_decoder:
             rec_state = torch.sigmoid(model.decoder(state))
-            loss = (F.binary_cross_entropy(
-                   rec_state, obs, reduction='sum') + kl_loss) / obs.size(0)
+            loss += (F.binary_cross_entropy(
+                rec_state, obs, reduction='sum') + kl_loss)
+
+        if train_transition:
+            next_state, _ = model.encode(next_obs)
+
+            transition_loss, _, pred_next = model.transition(
+                state, action, next_state)
+            loss += transition_loss
+
+            if train_encoder and train_decoder:
+                loss += F.binary_cross_entropy(torch.sigmoid(model.decoder(pred_next)), next_obs,
+                                reduction='sum')
+
+        loss /= obs.size(0)
+
         valid_loss += loss.item()
     avg_loss = valid_loss / len(valid_loader)
     print('====> Average valid loss: {:.6f}'.format(avg_loss))
 
 
 def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
-          train_transition=False, train_gamma=False):
+          train_transition=False):
 
     parameters = []
 
@@ -218,7 +239,6 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
     optimizer = torch.optim.Adam(parameters, lr=lr)
 
     print('Starting model training...')
-    step = 0
     best_loss = 1e9
     for epoch in range(1, max_epochs + 1):
         model.train()
@@ -233,48 +253,40 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
             obs, action, next_obs = data_batch
 
             optimizer.zero_grad()
-            #struct_optimizer.zero_grad()
 
             state, kl_loss = model.encode(obs)
+            loss = 0.0
+
+            if train_encoder or train_decoder:
+                rec_state = torch.sigmoid(model.decoder(state))
+                loss += (F.binary_cross_entropy(
+                    rec_state, obs, reduction='sum') + kl_loss)
 
             if train_transition:
                 next_state, _ = model.encode(next_obs)
 
-                transition_loss, dRdgamma, _ = model.transition(
+                transition_loss, _, pred_next = model.transition(
                     state, action, next_state)
-                loss = transition_loss
-            else:
-                rec_state = torch.sigmoid(model.decoder(state))
-                loss = (F.binary_cross_entropy(
-                    rec_state, obs, reduction='sum') + kl_loss)/ obs.size(0)
+                loss += transition_loss
+
+                if train_encoder and train_decoder:
+                    loss += F.binary_cross_entropy(torch.sigmoid(model.decoder(pred_next)), next_obs,
+                                    reduction='sum')
+
+            loss /= obs.size(0)
 
             loss.backward()
             train_loss += loss.item()
 
-            #if train_transition and model.learn_edges:
-            #    if (batch_idx // args.update_interval) % 2 ==0:
-            #        # udpate functional parameters only
-            #        struct_optimizer.zero_grad()
-            #    else:
-            #        optimizer.zero_grad()
-            #        # manually define grad for gamma params
-            #        model.gamma.grad = torch.zeros_like(model.gamma)
-            #        model.gamma.grad.copy_(dRdgamma)
-            #        struct_optimizer.step()
-
-            # update parameters
             optimizer.step()
 
-            if batch_idx % args.log_interval == 0:
+            if batch_idx % args.log_interval == 0 and batch_idx > 0:
                 iterator.set_postfix(loss=f'{train_loss / (1 + batch_idx):.6f}')
                 print(
-                    'Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                        epoch, batch_idx * len(data_batch[0]),
+                    'Epoch: {} [ {}/{} ] \t Loss: {:.6f}'.format(
+                        epoch, (batch_idx+1),
                         len(train_loader.dataset),
-                        100. * batch_idx / len(train_loader),
                         loss.item()))
-
-            step += 1
 
         avg_loss = train_loss / len(train_loader)
         print('====> Epoch: {} Average loss: {:.6f}'.format(
@@ -282,14 +294,9 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
 
         evaluate(model_file, valid_loader, train_transition)
 
-        #siggamma = model.gamma.sigmoid()
-        #print('Gamma: ' + os.linesep+str(siggamma))
-        #if train_transition:
-        #    print(dRdgamma)
         if avg_loss < best_loss:
             best_loss = avg_loss
             torch.save(model.state_dict(), model_file)
-
 
 def reload_model(model, filename):
     #only reloading encoder
@@ -318,6 +325,7 @@ if args.reload:
 
 train(args.pretrain_epochs, model_file, lr=args.lr, train_encoder=True, train_transition=False, train_decoder=True)
 train(args.epochs, model_file, lr=args.transit_lr, train_encoder=False, train_transition=True, train_decoder=False)
+train(args.epochs, finetune_file, lr=args.lr, train_encoder=True, train_transition=True, train_decoder=True)
 
 if args.eval_dataset is not None:
     utils.eval_steps(

@@ -50,7 +50,7 @@ def register_shapes(name='WShapesObserved-{}-{}-{}-{}', num_objects=5,
 
 for n_obj in [3,4,5]:
     for mode in ["Train", "Test-v1", "Test-v2", "Test-v3", "0shot"]:
-        for cmap in ["Blues", "Reds"]:
+        for cmap in ["Blues", "Reds", "Greens"]:
             register_shapes('WShapesObserved-{}-{}-{}-{}', n_obj, mode,
                             cmap, observed=True)
 

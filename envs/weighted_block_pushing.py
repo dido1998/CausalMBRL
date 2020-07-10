@@ -20,16 +20,33 @@ from cswm import utils
 
 mpl.use('Agg')
 
+def diamond(r0, c0, width, im_size):
+    rr, cc = [r0, r0 + width // 2, r0 + width, r0 + width // 2], [c0 + width // 2, c0, c0 + width // 2, c0 + width]
+    return skimage.draw.polygon(rr, cc, im_size)
 
 def square(r0, c0, width, im_size):
     rr, cc = [r0, r0 + width, r0 + width, r0], [c0, c0, c0 + width, c0 + width]
     return skimage.draw.polygon(rr, cc, im_size)
 
-
 def triangle(r0, c0, width, im_size):
     rr, cc = [r0, r0 + width, r0 + width], [c0 + width//2, c0, c0 + width]
     return skimage.draw.polygon(rr, cc, im_size)
 
+def cross(r0, c0, width, im_size):
+    diff1 = width // 3 + 1
+    diff2 = 2 * width // 3
+    rr = [r0 + diff1, r0 + diff2, r0 + diff2, r0 + width, r0 + width,
+            r0 + diff2, r0 + diff2, r0 + diff1, r0 + diff1, r0, r0, r0 + diff1]
+    cc = [c0, c0, c0 + diff1, c0 + diff1, c0 + diff2, c0 + diff2, c0 + width,
+            c0 + width, c0 + diff2, c0 + diff2, c0 + diff1, c0 + diff1]
+    return skimage.draw.polygon(rr, cc, im_size)
+
+def pentagon(r0, c0, width, im_size):
+    diff1 = width // 3 - 1
+    diff2 = 2 * width // 3 + 1
+    rr = [r0 + width // 2, r0 + width, r0 + width, r0 + width // 2, r0]
+    cc = [c0, c0 + diff1, c0 + diff2, c0 + width, c0 + width // 2]
+    return skimage.draw.polygon(rr, cc, im_size)
 
 def fig2rgb_array(fig):
     fig.canvas.draw()
@@ -165,15 +182,24 @@ class BlockPushing(gym.Env):
             if self.shapes[idx] == 0:
                 rr, cc = skimage.draw.circle(
                     obj.pos.x * 10 + 5, obj.pos.y * 10 + 5, 5, im.shape)
-                im[rr, cc, :] = self.colors[idx][:3]
             elif self.shapes[idx] == 1:
                 rr, cc = triangle(
                     obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
-                im[rr, cc, :] = self.colors[idx][:3]
-            else:
+            elif self.shapes[idx] == 2:
                 rr, cc = square(
                     obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
-                im[rr, cc, :] = self.colors[idx][:3]
+            elif self.shapes[idx] == 3:
+                rr, cc = diamond(
+                    obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
+            elif self.shapes[idx] == 4:
+                rr, cc = cross(
+                    obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
+            else:
+                rr, cc = pentagon(
+                    obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
+
+            im[rr, cc, :] = self.colors[idx][:3]
+
         return im.transpose([2, 0, 1])
 
     def render_cubes(self):
