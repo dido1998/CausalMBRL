@@ -31,13 +31,13 @@ register(
     kwargs={'render_type': 'shapes'},
 )
 
-# Weighted Shapes Observed
+# Weighted Shapes Environments
 
-
-def register_shapes(name='WShapesObserved-{}-{}-{}-{}', num_objects=5,
-                    mode='Train', cmap='Blues', **kwargs):
+def register_shapes(name='WShapes-{}-{}-{}-{}-{}', typ='Observed',
+    num_objects=5, mode='Train', cmap='Blues', **kwargs):
+    
     register(
-        name.format(mode, num_objects, cmap, 'v0'),
+        name.format(typ, mode, num_objects, cmap, 'v0'),
         entry_point='envs.weighted_block_pushing:BlockPushing',
         max_episode_steps=200,
         kwargs=dict(
@@ -45,20 +45,49 @@ def register_shapes(name='WShapesObserved-{}-{}-{}-{}', num_objects=5,
             num_objects=num_objects,
             mode=mode,
             cmap=cmap,
+            typ=typ,
+            **kwargs),
+    )
+
+def register_shapes_rl(name='WShapesRL-{}-{}-{}-{}-{}', typ='Observed',
+    num_objects=5, mode='Train', cmap='Blues', **kwargs):
+    
+    register(
+        name.format(typ, mode, num_objects, cmap, 'v0'),
+        entry_point='envs.weighted_block_pushing_rl:BlockPushingRL',
+        max_episode_steps=200,
+        kwargs=dict(
+            render_type='shapes',
+            num_objects=num_objects,
+            mode=mode,
+            cmap=cmap,
+            typ=typ,
             **kwargs),
     )
 
 for n_obj in [3,4,5]:
     for mode in ["Train", "Test-v1", "Test-v2", "Test-v3", "0shot"]:
         for cmap in ["Blues", "Reds", "Greens"]:
-            register_shapes('WShapesObserved-{}-{}-{}-{}', n_obj, mode,
-                            cmap, observed=True)
+            register_shapes('WShapes-{}-{}-{}-{}-{}', 'Observed',
+                n_obj, mode, cmap)
+            register_shapes_rl('WShapesRL-{}-{}-{}-{}-{}', 'Observed',
+                n_obj, mode, cmap)
 
 for n_obj in [3,4,5]:
     for mode in ["Train", "FewShot-v1", "FewShot-v2", "FewShot-v3"]:
         for cmap in ["Sets", "Pastels"]:
-            register_shapes('WShapesUnobserved-{}-{}-{}-{}', n_obj, mode,
-                            cmap, observed=False)
+            register_shapes('WShapes-{}-{}-{}-{}-{}', 'Unobserved',
+                n_obj, mode, cmap)
+            register_shapes_rl('WShapesRL-{}-{}-{}-{}-{}', 'Unobserved',
+                n_obj, mode, cmap)
+
+for n_obj in [3,4,5]:
+    for mode in ["Train", "FewShot-v1", "FewShot-v2", "FewShot-v3"]:
+        for cmap in ["Sets", "Pastels"]:
+            register_shapes('WShapes-{}-{}-{}-{}-{}', 'FixedUnobserved',
+                n_obj, mode, cmap)
+            register_shapes_rl('WShapesRL-{}-{}-{}-{}-{}', 'FixedUnobserved',
+                n_obj, mode, cmap)
 
 # Color Changing 
 def register_chemistry_envs(name = 'ColorChanging-{}-{}-{}', num_objects = 5,

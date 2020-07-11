@@ -165,7 +165,7 @@ obs = next(iter(train_loader))[0]
 input_shape = obs[0].size()
 
 if args.cswm:
-	model = ContrastiveSWM(
+    model = ContrastiveSWM(
         embedding_dim=args.embedding_dim,
         hidden_dim=args.hidden_dim,
         action_dim=args.action_dim,
@@ -177,34 +177,34 @@ if args.cswm:
         copy_action=args.copy_action,
         encoder=args.encoder).to(device)
 
-	num_enc = sum(p.numel() for p in model.encoder_parameters())
-	num_tr = sum(p.numel() for p in model.transition_parameters())
-	print(f'Number of parameters in Encoder: {num_enc}')
-	print(f'Number of parameters in Transition: {num_tr}')
-	print(f'Number of parameters: {num_enc + num_tr}')
+    num_enc = sum(p.numel() for p in model.encoder_parameters())
+    num_tr = sum(p.numel() for p in model.transition_parameters())
+    print(f'Number of parameters in Encoder: {num_enc}')
+    print(f'Number of parameters in Transition: {num_tr}')
+    print(f'Number of parameters: {num_enc + num_tr}')
 else:
-	model = CausalTransitionModel(
-	    embedding_dim=args.embedding_dim,
-	    hidden_dim=args.hidden_dim,
-	    action_dim=args.action_dim,
-	    input_dims=input_shape,
-	    input_shape=input_shape,
-	    num_graphs=args.num_graphs,
-	    modular=args.modular,
-	    predict_diff=args.predict_diff,
-	    learn_edges=args.learn_edges,
-	    vae=args.vae,
-	    num_objects=args.num_objects,
-	    encoder=args.encoder,
-	    multiplier=args.multiplier).to(device)
-	num_enc = sum(p.numel() for p in model.encoder_parameters())
-	num_dec = sum(p.numel() for p in model.decoder_parameters())
-	num_tr = sum(p.numel() for p in model.transition_parameters())
+    model = CausalTransitionModel(
+        embedding_dim=args.embedding_dim,
+        hidden_dim=args.hidden_dim,
+        action_dim=args.action_dim,
+        input_dims=input_shape,
+        input_shape=input_shape,
+        num_graphs=args.num_graphs,
+        modular=args.modular,
+        predict_diff=args.predict_diff,
+        learn_edges=args.learn_edges,
+        vae=args.vae,
+        num_objects=args.num_objects,
+        encoder=args.encoder,
+        multiplier=args.multiplier).to(device)
+    num_enc = sum(p.numel() for p in model.encoder_parameters())
+    num_dec = sum(p.numel() for p in model.decoder_parameters())
+    num_tr = sum(p.numel() for p in model.transition_parameters())
 
-	print(f'Number of parameters in Encoder: {num_enc}')
-	print(f'Number of parameters in Decoder: {num_dec}')
-	print(f'Number of parameters in Transition: {num_tr}')
-	print(f'Number of parameters: {num_enc+num_dec+num_tr}')
+    print(f'Number of parameters in Encoder: {num_enc}')
+    print(f'Number of parameters in Decoder: {num_dec}')
+    print(f'Number of parameters in Transition: {num_tr}')
+    print(f'Number of parameters: {num_enc+num_dec+num_tr}')
 
 model.apply(utils.weights_init)
 
@@ -238,7 +238,7 @@ def evaluate(model_file, valid_loader, train_encoder = True, train_decoder = Tru
                     loss += F.binary_cross_entropy(torch.sigmoid(model.decoder(pred_next)), next_obs,
                                     reduction='sum')
         else:
-        	loss = model.contrastive_loss(*data_batch)
+            loss = model.contrastive_loss(*data_batch)
         loss /= obs.size(0)
 
         valid_loss += loss.item()
@@ -250,7 +250,7 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
           train_transition=False):
 
     parameters = []
-    if not args.cswm:	
+    if not args.cswm:    
         if train_transition:
             parameters = chain(parameters, model.transition_parameters())
         if train_encoder:
@@ -260,7 +260,7 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
 
         optimizer = torch.optim.Adam(parameters, lr = lr)
     else:
-    	optimizer = torch.optim.Adam(model.parameters(), lr = lr)
+        optimizer = torch.optim.Adam(model.parameters(), lr = lr)
 
     print('Starting model training...')
     best_loss = 1e9
@@ -298,7 +298,7 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
                         loss += F.binary_cross_entropy(torch.sigmoid(model.decoder(pred_next)), next_obs,
                                         reduction='sum')
             else:
-            	loss = model.contrastive_loss(*data_batch)
+                loss = model.contrastive_loss(*data_batch)
 
             loss /= obs.size(0)
 
@@ -351,11 +351,11 @@ if args.reload:
         print (str(reload_file) + "File not exist")
 
 if not args.cswm:
-	train(args.pretrain_epochs, model_file, lr=args.lr, train_encoder=True, train_transition=False, train_decoder=True)
-	train(args.epochs, model_file, lr=args.transit_lr, train_encoder=False, train_transition=True, train_decoder=False)
-	train(args.epochs, finetune_file, lr=args.lr, train_encoder=True, train_transition=True, train_decoder=True)
+    train(args.pretrain_epochs, model_file, lr=args.lr, train_encoder=True, train_transition=False, train_decoder=True)
+    train(args.epochs, model_file, lr=args.transit_lr, train_encoder=False, train_transition=True, train_decoder=False)
+    train(args.epochs, finetune_file, lr=args.lr, train_encoder=True, train_transition=True, train_decoder=True)
 else:
-	train(args.epochs, model_file, lr = args.lr)
+    train(args.epochs, model_file, lr = args.lr)
 if args.eval_dataset is not None:
     utils.eval_steps(
         model, [1, 5, 10],

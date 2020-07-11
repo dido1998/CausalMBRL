@@ -116,13 +116,12 @@ class InvalidPush(BaseException):
     pass
 
 
-class BlockPushing(gym.Env):
+class BlockPushingRL(gym.Env):
     """Gym environment for block pushing task."""
 
     def __init__(self, width=5, height=5, render_type='cubes',
                  *, num_objects=5, mode='Train', cmap='Blues', typ='Observed',
                  num_weights=None, random_colors=False, seed=None):
-
         self.width = width
         self.height = height
         self.render_type = render_type
@@ -148,7 +147,6 @@ class BlockPushing(gym.Env):
 
         self.np_random = None
         self.game = None
-        self.target = None
 
         # Initialize to pos outside of env for easier collision resolution.
         self.objects = OrderedDict()
@@ -272,7 +270,12 @@ class BlockPushing(gym.Env):
                     ),
                     weight=weights[idx])
 
-        return self.get_state(), self.render()
+        self.target = (np.zeros([self.num_objects, self.width, self.height], dtype=int),
+            np.zeros([3, self.width * 10, self.height * 10]))
+
+        self.target = self.get_target()
+
+        return (self.get_state(), self.render()), self.target
 
     def valid_pos(self, pos, obj_id):
         """Check if position is valid."""
@@ -337,7 +340,6 @@ class BlockPushing(gym.Env):
         direction = action % 4
         obj_id = action // 4
 
-        reward = 0
         done = False
         info = {'invalid_push': False}
         try:
@@ -345,8 +347,23 @@ class BlockPushing(gym.Env):
         except InvalidMove:
             pass
         except InvalidPush:
-            # tried to push 2 objects or more
             info['invalid_push'] = True
 
-        state_obs = (self.get_state(), self.render())
+        state = self.get_state()
+        img = self.render()
+
+        reward = np.sum(np.minimum(state, self.target[0])) / self.num_objects
+
+        state_obs = (state, img)
         return state_obs, reward, done, info
+
+    def get_target(self, num_steps=20):
+        objects = self.objects.copy()
+
+        for i in range(num_steps):
+            move = np.random.choice(self.num_objects * 4)
+            state, _, _, _ = self.step(move)
+
+        self.objects = objects
+
+        return state
