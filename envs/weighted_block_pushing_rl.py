@@ -140,7 +140,7 @@ class BlockPushingRL(gym.Env):
                 print("something went wrong")
 
         self.num_objects = num_objects
-        self.num_actions = 4 * self.num_objects  # Move NESW
+        self.num_actions = 5 * self.num_objects  # Move StayNESW
         if num_weights is None:
             num_weights = num_objects
         self.num_weights = num_weights
@@ -345,7 +345,8 @@ class BlockPushingRL(gym.Env):
             pos=obj.pos+offset, weight=obj.weight)
 
     def step(self, action: int):
-        directions = [Coord(-1, 0),
+        directions = [Coord(0, 0),
+                      Coord(-1, 0),
                       Coord(0, 1),
                       Coord(1, 0),
                       Coord(0, -1)]
@@ -370,6 +371,32 @@ class BlockPushingRL(gym.Env):
 
         state_obs = (state, img)
         return state_obs, reward, done, info
+
+    def sample_step(self, action: int):
+        directions = [Coord(0, 0),
+                      Coord(-1, 0),
+                      Coord(0, 1),
+                      Coord(1, 0),
+                      Coord(0, -1)]
+
+        direction = action % 5
+        obj_id = action // 5
+        done = False
+        info = {'invalid_push': False}
+
+        objects = self.objects.copy()
+        try:
+            self.translate(obj_id, directions[direction])
+        except InvalidMove:
+            pass
+        except InvalidPush:
+            info['invalid_push'] = True
+
+        reward = self.get_dense_reward(self.target_objects)
+        next_obs = self.render()
+        self.objects = objects
+
+        return reward, next_obs
 
     def get_target(self, num_steps=20):
         objects = self.objects.copy()
