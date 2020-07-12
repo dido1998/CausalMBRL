@@ -281,7 +281,7 @@ class StateTransitionsDataset(data.Dataset):
         reward = self.experience_buffer[ep]['reward'][step]
         action = self.action_transform(action)
         next_obs = to_float(self.experience_buffer[ep]['next_obs'][step])
-        target = to_float(self.experience_buffer[ep]['target'][step])
+        target = to_float(self.experience_buffer[ep]['target'])
 
         return obs, action, next_obs, reward, target
 

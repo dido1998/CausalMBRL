@@ -44,11 +44,11 @@ def crop_normalize(img, crop_ratio):
 
 def parse_args():
     parser = argparse.ArgumentParser(description=None)
-    parser.add_argument('--env_id', type=str, default='ShapesTrain-v0',
+    parser.add_argument('--env-id', type=str, default='ShapesTrain-v0',
                         help='Select the environment to run.')
     parser.add_argument('--fname', type=str, default='data/shapes_train.h5',
                         help='Save path for replay buffer.')
-    parser.add_argument('--num_episodes', type=int, default=1000,
+    parser.add_argument('--num-episodes', type=int, default=1000,
                         help='Total number of episodes to simulate.')
     parser.add_argument('--atari', action='store_true', default=False,
                         help='Run atari mode (stack multiple frames).')
@@ -109,7 +109,6 @@ def try_generate_episode(env, agent, *, warm_start, crop,
             actions.append(action)
             next_obs.append(next_ob[1])
             rewards.append(reward)
-            goals.append(target[1])
 
             ob = next_ob
 
@@ -123,8 +122,8 @@ def try_generate_episode(env, agent, *, warm_start, crop,
         obs=obs,
         action=actions,
         next_obs=next_obs,
-        reward=reward,
-        target=goals,
+        reward=rewards,
+        target=target[1],
     )
 
 
