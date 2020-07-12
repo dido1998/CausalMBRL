@@ -236,6 +236,18 @@ class BlockPushingRL(gym.Env):
             im[idx, obj.pos.x, obj.pos.y] = 1
         return im
 
+    def get_sparse_reward(self, target_state):
+        return np.sum(np.minimum(state, self.target[0])) / self.num_objects
+
+    def get_dense_reward(self, target_objects):
+        distance = 0.0
+        for i in range(self.num_objects):
+            distance += np.abs(self.objects[i].pos.x - target_objects[i].pos.x) +\
+                        np.abs(self.objects[i].pos.y - target_objects[i].pos.y)
+
+        distance /= ((self.height - 1) * (self.width - 1) * self.num_objects)
+        return -distance
+
     def reset(self):
         if self.typ == 'FixedUnobserved':
             self.shapes = np.arange(self.num_objects)
@@ -272,8 +284,9 @@ class BlockPushingRL(gym.Env):
 
         self.target = (np.zeros([self.num_objects, self.width, self.height], dtype=int),
             np.zeros([3, self.width * 10, self.height * 10]))
+        self.target_objects = self.objects.copy()
 
-        self.target = self.get_target()
+        self.get_target()
 
         return (self.get_state(), self.render()), self.target
 
@@ -352,7 +365,8 @@ class BlockPushingRL(gym.Env):
         state = self.get_state()
         img = self.render()
 
-        reward = np.sum(np.minimum(state, self.target[0])) / self.num_objects
+        # reward = self.get_sparse_reward(self.target[0])
+        reward = self.get_dense_reward(self.target_objects)
 
         state_obs = (state, img)
         return state_obs, reward, done, info
@@ -364,6 +378,6 @@ class BlockPushingRL(gym.Env):
             move = np.random.choice(self.num_objects * 4)
             state, _, _, _ = self.step(move)
 
+        self.target_objects = self.objects.copy()
+        self.target = state
         self.objects = objects
-
-        return state

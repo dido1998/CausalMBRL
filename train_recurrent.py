@@ -152,6 +152,7 @@ dataset = utils.LSTMDataset(
     hdf5_file=args.dataset, action_transform=OneHot(args.num_objects * args.action_dim))
 train_loader = data.DataLoader(
     dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+
 model = CausalTransitionModelLSTM(
     embedding_dim=args.embedding_dim,
     hidden_dim=args.hidden_dim,

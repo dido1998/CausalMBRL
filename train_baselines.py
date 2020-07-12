@@ -216,7 +216,7 @@ def evaluate(model_file, valid_loader, train_encoder = True, train_decoder = Tru
 
     for batch_idx, data_batch in enumerate(valid_loader):
         data_batch = [tensor.to(device) for tensor in data_batch]
-        obs, action, next_obs = data_batch
+        obs, action, next_obs, _, _ = data_batch
         
 
         loss = 0.0
@@ -244,7 +244,7 @@ def evaluate(model_file, valid_loader, train_encoder = True, train_decoder = Tru
         valid_loss += loss.item()
     avg_loss = valid_loss / len(valid_loader)
     print('====> Average valid loss: {:.6f}'.format(avg_loss))
-
+    return avg_loss
 
 def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
           train_transition=False):
@@ -273,7 +273,7 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
         for batch_idx, data_batch in enumerate(iterator):
             model.train()
             data_batch = [tensor.to(device) for tensor in data_batch]
-            obs, action, next_obs = data_batch
+            obs, action, next_obs, _, _ = data_batch
 
             optimizer.zero_grad()
 
@@ -316,10 +316,10 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
                         loss.item()))
 
         avg_loss = train_loss / len(train_loader)
-        print('====> Epoch: {} Average loss: {:.6f}'.format(
+        print('====> Epoch: {} Average train loss: {:.6f}'.format(
             epoch, avg_loss))
 
-        evaluate(model_file, valid_loader, train_encoder = train_encoder, train_decoder = train_decoder, train_transition = train_transition)
+        avg_loss = evaluate(model_file, valid_loader, train_encoder = train_encoder, train_decoder = train_decoder, train_transition = train_transition)
 
         if avg_loss < best_loss:
             best_loss = avg_loss
@@ -356,6 +356,7 @@ if not args.cswm:
     train(args.epochs, finetune_file, lr=args.lr, train_encoder=True, train_transition=True, train_decoder=True)
 else:
     train(args.epochs, model_file, lr = args.lr)
+
 if args.eval_dataset is not None:
     utils.eval_steps(
         model, [1, 5, 10],

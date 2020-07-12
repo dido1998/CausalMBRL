@@ -715,25 +715,15 @@ class EncoderMLP(nn.Module):
 
 class RewardPredictor(nn.Module):
 
-    def __init__(self):
+    def __init__(self, embedding_dim):
         super(RewardPredictor, self).__init__()
 
+        self.embedding_dim = embedding_dim
+
         self.model = nn.Sequential(
-            nn.Conv2d(3, 16, (3,3)),
-            nn.ReLU(),
-            nn.MaxPool2d((2, 2)),
-            nn.Conv2d(16, 32, (3, 3)),
-            nn.ReLU(),
-            nn.Conv2d(32, 64, (3, 3)),
-            nn.ReLU(),
-            nn.Conv2d(64, 128, (3, 3), stride=2),
-            nn.ReLU(),
-            nn.Conv2d(128, 256, (3,3), stride=2),
-            nn.ReLU(),
-            nn.Conv2d(256, 512, (3,3), stride=2),
-            nn.ReLU(),
-            Flatten(),
-            nn.Linear(512, 1)
+        	nn.Linear(self.embedding_dim * 2, 512),
+        	nn.ReLU(inplace=True),
+        	nn.Linear(512, 1)
         )
 
     def forward(self, x):
