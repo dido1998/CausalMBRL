@@ -1,13 +1,15 @@
 import argparse
 import torch
+import torch.nn.functional as F
 import pickle
 from pathlib import Path
 
 from torch.utils import data
 import numpy as np
+import tqdm
 
 from cswm import utils
-from cswm.models.modules import RewardPredictor
+from cswm.models.modules import RewardPredictor, CausalTransitionModel, ContrastiveSWM
 from cswm.utils import OneHot
 
 torch.backends.cudnn.deterministic = True
@@ -17,23 +19,28 @@ parser.add_argument('--save-folder', type=Path,
                     default='checkpoints',
                     help='Path to checkpoints.')
 
-parser.add_argument('--dataset', type=Path,
-                    default=Path('data/shapes_eval.h5'),
-                    help='Dataset file name.')
 parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='Disable CUDA training.')
 parser.add_argument('--finetune', action='store_true', default=False,
                     help='Whether to use finetuned model')
+parser.add_argument('--random', action='store_true', default=False)
 args_eval = parser.parse_args()
 
 
 meta_file = args_eval.save_folder / 'metadata.pkl'
-if args.finetune:
+if args_eval.finetune:
     model_file = args_eval.save_folder / 'finetuned_model.pt'
+elif args_eval.random:
+    model_file = args_eval.save_folder / 'random_model.pt'
 else:
     model_file = args_eval.save_folder / 'model.pt'
 
-reward_model_file = args_eval.save_folder / 'reward_model.pt'
+if args_eval.finetune:
+    reward_model_file = args_eval.save_folder / 'finetuned_reward_model.pt'
+elif args_eval.random:
+    reward_model_file = args_eval.save_folder / 'random_reward_model.pt'
+else:
+    reward_model_file = args_eval.save_folder / 'reward_model.pt'
 
 with open(meta_file, 'rb') as f:
     args = pickle.load(f)['args']
@@ -51,11 +58,16 @@ dataset = utils.StateTransitionsDataset(
 valid_dataset = utils.StateTransitionsDataset(
     hdf5_file=args.valid_dataset, action_transform=OneHot(args.num_objects * args.action_dim))
 
+train_loader = data.DataLoader(
+    dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+valid_loader = data.DataLoader(
+    valid_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+
 print("Loading model...")
 
 # Get data sample
-obs = next(iter(eval_loader))[0]
-input_shape = obs[0][0].size()
+obs = next(iter(train_loader))[0]
+input_shape = obs[0].size()
 
 print("VAE: ", args.vae)
 print("Modular: ", args.modular)
@@ -97,6 +109,7 @@ else:
         num_objects=args.num_objects,
         encoder=args.encoder,
         multiplier=args.multiplier).to(device)
+
     num_enc = sum(p.numel() for p in model.encoder_parameters())
     num_dec = sum(p.numel() for p in model.decoder_parameters())
     num_tr = sum(p.numel() for p in model.transition_parameters())
@@ -106,23 +119,28 @@ else:
     print(f'Number of parameters in Transition: {num_tr}')
     print(f'Number of parameters: {num_enc+num_dec+num_tr}')
 
-model.load_state_dict(torch.load(model_file))
+if not args_eval.random:
+    model.load_state_dict(torch.load(model_file))
+else:
+    torch.save(model.state_dict(), model_file)
+
 model.eval()
 
-Reward_Model = RewardPredictor(args.embedding_dim).to(device)
+Reward_Model = RewardPredictor(args.embedding_dim * args.num_objects).to(device)
 
 def evaluate(valid_loader):
     valid_loss = 0.0
+    Reward_Model.eval()
 
     for batch_idx, data_batch in enumerate(valid_loader):
-        data_batch = [tensor.to(device) for tensor in data_batch]
+        data_batch = [tensor.to(device).float() for tensor in data_batch]
         obs, _, _, reward, target = data_batch
 
         state, _ = model.encode(obs)
         reward_state, _ = model.encode(target)
 
         state_emb = torch.cat([state, reward_state], dim=1)
-        reward_pred = Reward_Model(state_emb)
+        reward_pred = Reward_Model(state_emb).view(reward.shape)
 
         loss = F.mse_loss(reward_pred, reward)
 
@@ -139,28 +157,25 @@ def train(max_epochs, lr):
     print('Starting model training...')
     best_loss = 1e9
     for epoch in range(1, max_epochs + 1):
-        Reward_Model.train()
         train_loss = 0
 
         iterator = tqdm.tqdm(train_loader, desc=f'Epoch {epoch}',
                              disable=args.silent)
 
         for batch_idx, data_batch in enumerate(iterator):
-            model.train()
-            data_batch = [tensor.to(device) for tensor in data_batch]
+            Reward_Model.train()
+            data_batch = [tensor.to(device).float() for tensor in data_batch]
             obs, _, _, reward, target = data_batch
 
             optimizer.zero_grad()
-
-            loss = 0.0
 
             state, _ = model.encode(obs)
             reward_state, _ = model.encode(target)
 
             state_emb = torch.cat([state, reward_state], dim=1)
-            reward_pred = Reward_Model(state_emb)
+            reward_pred = Reward_Model(state_emb).view(reward.shape)
 
-            loss += F.mse_loss(reward_pred, reward)
+            loss = F.mse_loss(reward_pred, reward)
 
             loss.backward()
             train_loss += loss.item()
