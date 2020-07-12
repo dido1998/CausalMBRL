@@ -545,7 +545,7 @@ class ColorChangingRL(gym.Env):
         for c1, c2 in zip(self.object_to_color, self.object_to_color_target):
             if torch.argmax(c1).item() == torch.argmax(c2).item():
                 matches+=1
-        reward = 0
+        reward = matches / self.num_objects
         #reward = 0
         #if matches == self.num_objects:
         #    reward = 1
@@ -553,7 +553,7 @@ class ColorChangingRL(gym.Env):
         
         state_obs = self.render()
         if self.cur_step >= self.max_steps:
-            reward = matches / self.num_objects
+            #reward = matches / self.num_objects
             done = True
         self.cur_step += 1
         return state_obs, reward, done, None
