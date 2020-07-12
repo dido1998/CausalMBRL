@@ -67,8 +67,10 @@ def try_generate_episode(env, agent, *, warm_start, crop,
     obs = []
     actions = []
     next_obs = []
+    rewards = []
+    goals = []
 
-    ob = env.reset()
+    ob, target = env.reset()
 
     if atari:
         # Burn-in steps
@@ -106,6 +108,8 @@ def try_generate_episode(env, agent, *, warm_start, crop,
             obs.append(ob[1])
             actions.append(action)
             next_obs.append(next_ob[1])
+            rewards.append(reward)
+            goals.append(target[1])
 
             ob = next_ob
 
@@ -119,6 +123,8 @@ def try_generate_episode(env, agent, *, warm_start, crop,
         obs=obs,
         action=actions,
         next_obs=next_obs,
+        reward=reward,
+        target=goals,
     )
 
 
