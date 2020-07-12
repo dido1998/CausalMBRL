@@ -55,7 +55,7 @@ parser.add_argument('--hidden-dim', type=int, default=512,
                     help='Number of hidden units in transition MLP.')
 parser.add_argument('--embedding-dim', type=int, default=2,
                     help='Dimensionality of embedding.')
-parser.add_argument('--action-dim', type=int, default=4,
+parser.add_argument('--action-dim', type=int, default=5,
                     help='Dimensionality of action space.')
 parser.add_argument('--num-objects', type=int, default=5,
                     help='Number of object slots in model.')

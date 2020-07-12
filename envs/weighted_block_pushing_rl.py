@@ -351,8 +351,8 @@ class BlockPushingRL(gym.Env):
                       Coord(1, 0),
                       Coord(0, -1)]
 
-        direction = action % 4
-        obj_id = action // 4
+        direction = action % 5
+        obj_id = action // 5
 
         done = False
         info = {'invalid_push': False}
@@ -398,11 +398,11 @@ class BlockPushingRL(gym.Env):
 
         return reward, next_obs
 
-    def get_target(self, num_steps=20):
+    def get_target(self, num_steps=10):
         objects = self.objects.copy()
 
         for i in range(num_steps):
-            move = np.random.choice(self.num_objects * 4)
+            move = np.random.choice(self.num_objects * 5)
             state, _, _, _ = self.step(move)
 
         self.target_objects = self.objects.copy()

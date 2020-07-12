@@ -29,17 +29,16 @@ def get_best_model_action(obs, target, action_space, model, reward_model):
     n = env.action_space.n
     best_reward = -np.inf
     best_action = None
+    target = torch.tensor(target).cuda().float().unsqueeze(0)
 
     for i in range(n):
         _, obs = env.unwrapped.sample_step(i)
+        obs = torch.tensor(obs).cuda().float().unsqueeze(0)
 
         state, _ = model.encode(obs)
         target_state, _ = model.encode(target)
 
-        state = torch.tensor(state).cuda().float()
-        target_state = torch.tensor(target_state).cuda().float()
-
-        emb = torch.cat([state, target_state])
+        emb = torch.cat([state, target_state], dim=1)
 
         reward_pred = reward_model(emb).detach().cpu().item()
 
@@ -64,8 +63,12 @@ def planning_model(env, model, reward_model, episode_count, num_steps=20):
 
         rewards.append(reward)
 
-    print(np.mean(rewards))
-    print(np.std(rewards))
+    rewards = np.array(rewards)
+    success = rewards == 0.0
+
+    print("Mean: ", np.mean(rewards))
+    print("Standard Deviation: ", np.std(rewards))
+    print("Success Rate: ", np.mean(success))
 
 def planning_best(env, episode_count, num_steps=20):
     action_space = env.action_space
@@ -80,8 +83,12 @@ def planning_best(env, episode_count, num_steps=20):
 
         rewards.append(reward)
 
-    print(np.mean(rewards))
-    print(np.std(rewards))
+    rewards = np.array(rewards)
+    success = rewards == 0.0
+
+    print("Mean: ", np.mean(rewards))
+    print("Standard Deviation: ", np.std(rewards))
+    print("Success Rate: ", np.mean(success))
 
 def planning_random(env, episode_count, num_steps=20):
     action_space = env.action_space
@@ -96,8 +103,13 @@ def planning_random(env, episode_count, num_steps=20):
 
         rewards.append(reward)
 
-    print(np.mean(rewards))
-    print(np.std(rewards))
+    rewards = np.array(rewards)
+    success = rewards == 0.0
+
+    print("Mean: ", np.mean(rewards))
+    print("Standard Deviation: ", np.std(rewards))
+    print("Success Rate: ", np.mean(success))
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--save-folder', type=Path,
@@ -110,18 +122,17 @@ parser.add_argument('--random', action='store_true', default=False,
 
 args_eval = parser.parse_args()
 
-
+num_eval = 1000
 meta_file = args_eval.save_folder / 'metadata.pkl'
 
-if args_eval.finetune:
-    model_file = args_eval.save_folder / 'finetuned_model.pt'
-    reward_model_file = args_eval.save_folder / 'finetuned_reward_model.pt'
-elif args_eval.random:
-    model_file = args_eval.save_folder / 'random_model.pt'
-    reward_model_file = args_eval.save_folder / 'random_reward_model.pt'
-else:
-    model_file = args_eval.save_folder / 'model.pt'
-    reward_model_file = args_eval.save_folder / 'reward_model.pt'
+finetune_model_file = args_eval.save_folder / 'finetuned_model.pt'
+finetune_reward_model_file = args_eval.save_folder / 'finetuned_reward_model.pt'
+
+random_model_file = args_eval.save_folder / 'random_model.pt'
+random_reward_model_file = args_eval.save_folder / 'random_reward_model.pt'
+
+model_file = args_eval.save_folder / 'model.pt'
+reward_model_file = args_eval.save_folder / 'reward_model.pt'
 
 with open(meta_file, 'rb') as f:
     args = pickle.load(f)['args']
@@ -177,13 +188,43 @@ else:
 
 Reward_Model = RewardPredictor(args.embedding_dim * args.num_objects).cuda()
 
-model.load_state_dict(torch.load(model_file))
-Reward_Model.load_state_dict(torch.load(reward_model_file))
-
-Reward_Model.eval()
-model.eval()
-
 with gym.make('WShapesRL-Observed-Train-3-Blues-v0') as env:
-    planning_random(env, 1000)
-    planning_best(env, 1000)
-    planning_model(env, model, Reward_Model, 1000)
+    print("Random Planning: ")
+    planning_random(env, num_eval)
+    print()
+
+    print("Best Planning: ")
+    planning_best(env, num_eval)
+    print()
+
+    if args_eval.random:
+        model.load_state_dict(torch.load(random_model_file))
+        Reward_Model.load_state_dict(torch.load(random_reward_model_file))
+
+        Reward_Model.eval()
+        model.eval()
+
+        print("Random Model Planning: ")
+        planning_model(env, model, Reward_Model, num_eval)
+        print()
+
+    if args_eval.finetune:
+        model.load_state_dict(torch.load(finetune_model_file))
+        Reward_Model.load_state_dict(torch.load(finetune_reward_model_file))
+
+        Reward_Model.eval()
+        model.eval()
+
+        print("Finetuned Model Planning: ")
+        planning_model(env, model, Reward_Model, num_eval)
+        print()
+
+    model.load_state_dict(torch.load(model_file))
+    Reward_Model.load_state_dict(torch.load(reward_model_file))
+
+    Reward_Model.eval()
+    model.eval()
+
+    print("Model Planning: ")
+    planning_model(env, model, Reward_Model, num_eval)
+    print()

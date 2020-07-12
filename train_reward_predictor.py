@@ -7,6 +7,7 @@ from pathlib import Path
 from torch.utils import data
 import numpy as np
 import tqdm
+import logging
 
 from cswm import utils
 from cswm.models.modules import RewardPredictor, CausalTransitionModel, ContrastiveSWM
@@ -30,17 +31,23 @@ args_eval = parser.parse_args()
 meta_file = args_eval.save_folder / 'metadata.pkl'
 if args_eval.finetune:
     model_file = args_eval.save_folder / 'finetuned_model.pt'
+    reward_model_file = args_eval.save_folder / 'finetuned_reward_model.pt'
+    log_file = args_eval.save_folder / 'finetuned_reward_log.txt' 
 elif args_eval.random:
     model_file = args_eval.save_folder / 'random_model.pt'
+    reward_model_file = args_eval.save_folder / 'random_reward_model.pt'
+    log_file = args_eval.save_folder / 'random_reward_log.txt'
 else:
     model_file = args_eval.save_folder / 'model.pt'
-
-if args_eval.finetune:
-    reward_model_file = args_eval.save_folder / 'finetuned_reward_model.pt'
-elif args_eval.random:
-    reward_model_file = args_eval.save_folder / 'random_reward_model.pt'
-else:
     reward_model_file = args_eval.save_folder / 'reward_model.pt'
+    log_file = args_eval.save_folder / 'reward_log.txt'
+
+handlers = [logging.FileHandler(log_file, 'a')]
+if args.silent:
+    handlers.append(logging.StreamHandler(sys.stdout))
+logging.basicConfig(level=logging.INFO, format='%(message)s', handlers=handlers)
+logger = logging.getLogger()
+print = logger.info
 
 with open(meta_file, 'rb') as f:
     args = pickle.load(f)['args']
