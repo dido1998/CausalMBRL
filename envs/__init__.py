@@ -66,7 +66,7 @@ def register_shapes_rl(name='WShapesRL-{}-{}-{}-{}-{}', typ='Observed',
     )
 
 for n_obj in [3,4,5]:
-    for mode in ["Train", "Test-v1", "Test-v2", "Test-v3", "0shot"]:
+    for mode in ["Train", "Test-v1", "Test-v2", "Test-v3", "ZeroShot", "ZeroShotShape"]:
         for cmap in ["Blues", "Reds", "Greens"]:
             register_shapes('WShapes-{}-{}-{}-{}-{}', 'Observed',
                 n_obj, mode, cmap)
@@ -74,7 +74,7 @@ for n_obj in [3,4,5]:
                 n_obj, mode, cmap)
 
 for n_obj in [3,4,5]:
-    for mode in ["Train", "FewShot-v1", "FewShot-v2", "FewShot-v3"]:
+    for mode in ["Train", "FewShot-v1", "FewShot-v2", "FewShot-v3", "ZeroShotShape"]:
         for cmap in ["Sets", "Pastels"]:
             register_shapes('WShapes-{}-{}-{}-{}-{}', 'Unobserved',
                 n_obj, mode, cmap)

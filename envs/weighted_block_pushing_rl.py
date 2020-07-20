@@ -202,12 +202,12 @@ class BlockPushingRL(gym.Env):
                 rr, cc = cross(
                     obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
             elif self.shapes[idx] == 5:
+                rr, cc = pentagon(
+                    obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
+            elif self.shapes[idx] == 6:
                 rr, cc = parallelogram(
                     obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
                 im[rr, cc, :] = self.colors[obj.color][:3]
-            elif self.shapes[idx] == 6:
-                rr, cc = pentagon(
-                    obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
             else:
                 rr, cc = scalene_triangle(
                     obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
@@ -251,6 +251,8 @@ class BlockPushingRL(gym.Env):
     def reset(self):
         if self.typ == 'FixedUnobserved':
             self.shapes = np.arange(self.num_objects)
+        elif self.mode == 'ZeroShotShape':
+            self.shapes = np.random.choice(6, self.num_objects)
         else:
             self.shapes = np.random.choice(3, self.num_objects)
 

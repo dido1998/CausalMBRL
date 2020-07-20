@@ -99,7 +99,7 @@ def get_cmap(cmap, mode):
     return cmap, length
 
 def observed_colors(num_colors, mode):
-    if mode == '0shot':
+    if mode == 'ZeroShot':
         c = np.sort(np.random.uniform(0.0, 1.0, size=num_colors))
     else:
         c = (np.arange(num_colors)) / (num_colors-1)
