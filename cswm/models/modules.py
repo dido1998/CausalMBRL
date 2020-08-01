@@ -501,7 +501,7 @@ class ContrastiveSWM(nn.Module):
         enc = self.encoder(obs)
         return enc, 0.0
 
-    def contrastive_loss(self, obs, action, next_obs):
+    def contrastive_loss(self, obs, action, next_obs, reward=None, target=None):
 
         # Added for compatibility
         action = torch.argmax(action, dim = 1)
@@ -656,6 +656,160 @@ class TransitionGNN(torch.nn.Module):
         # [batch_size, num_nodes, hidden_dim]
         return node_attr.view(batch_size, num_nodes, -1)
 
+class ContrastiveSWMFinal(nn.Module):
+    """Main module for a Contrastively-trained Structured World Model (C-SWM).
+    Args:
+        embedding_dim: Dimensionality of abstract state space.
+        input_dims: Shape of input observation.
+        hidden_dim: Number of hidden units in encoder and transition model.
+        action_dim: Dimensionality of action space.
+        num_objects: Number of object slots.
+    """
+    def __init__(self, embedding_dim, input_dims, hidden_dim, action_dim,
+                 num_objects, input_shape=[3,50,50], hinge=1., sigma=0.5, encoder='large',
+                 ignore_action=False, copy_action=False):
+        super(ContrastiveSWMFinal, self).__init__()
+
+        self.hidden_dim = hidden_dim
+        self.embedding_dim = embedding_dim
+        self.action_dim = action_dim
+        self.num_objects = num_objects
+        self.hinge = hinge
+        self.sigma = sigma
+        self.ignore_action = ignore_action
+        self.copy_action = copy_action
+        self.input_shape = input_shape
+        
+        self.pos_loss = 0
+        self.neg_loss = 0
+
+        num_channels = input_dims[0]
+        width_height = input_dims[1:]
+
+        if encoder == 'small':
+            self.obj_extractor = EncoderCNNSmall(
+                input_dim=num_channels,
+                hidden_dim=hidden_dim // 16,
+                num_objects=num_objects)
+            width_height = np.array(width_height)
+            width_height = width_height // 10
+            self.decoder = DecoderCNNSmall(
+                            input_dim=self.embedding_dim,
+                            num_objects=self.num_objects,
+                            hidden_dim=self.hidden_dim//2,
+                            output_size=self.input_shape)
+
+        elif encoder == 'medium':
+            self.obj_extractor = EncoderCNNMedium(
+                input_dim=num_channels,
+                hidden_dim=hidden_dim // 16,
+                num_objects=num_objects)
+            width_height = np.array(width_height)
+            width_height = width_height // 5
+            self.decoder = DecoderCNNMedium(
+                            input_dim=self.embedding_dim,
+                            num_objects=self.num_objects,
+                            hidden_dim=self.hidden_dim//2,
+                            output_size=self.input_shape)
+
+        elif encoder == 'large':
+            self.obj_extractor = EncoderCNNLarge(
+                input_dim=num_channels,
+                hidden_dim=hidden_dim // 16,
+                num_objects=num_objects)
+            self.decoder = DecoderCNNLarge(
+                            input_dim=self.embedding_dim,
+                            num_objects=self.num_objects,
+                            hidden_dim=self.hidden_dim//2,
+                            output_size=self.input_shape)
+
+        self.obj_encoder = EncoderMLP(
+            input_dim=np.prod(width_height),
+            hidden_dim=hidden_dim,
+            output_dim=embedding_dim,
+            num_objects=num_objects)
+
+        self.transition_model = TransitionGNN(
+            input_dim=embedding_dim,
+            hidden_dim=hidden_dim,
+            action_dim=action_dim,
+            num_objects=num_objects,
+            ignore_action=ignore_action,
+            copy_action=copy_action)
+
+        self.width = width_height[0]
+        self.height = width_height[1]
+
+        self.encoder = nn.Sequential(OrderedDict(
+            obj_extractor=self.obj_extractor,
+            obj_encoder=self.obj_encoder))
+    
+    def encoder_parameters(self):
+        return self.encoder.parameters()
+
+    def decoder_parameters(self):
+        return self.decoder.parameters()
+    
+    def transition_parameters(self):
+        return self.transition_model.parameters()
+
+    def transition(self, pred_state, action):
+        # Added for compatibility 
+        action = torch.argmax(action, dim = 1)
+        
+        return self.transition_model(pred_state, action) + pred_state
+
+    def energy(self, state, action, next_state, no_trans=False):
+        """Energy function based on normalized squared L2 norm."""
+
+        norm = 0.5 / (self.sigma**2)
+
+        if no_trans:
+            diff = state - next_state
+        else:
+            pred_trans = self.transition_model(state, action)
+            diff = state + pred_trans - next_state
+
+        return norm * diff.pow(2).sum(2).mean(1)
+
+    def transition_loss(self, state, action, next_state):
+        return self.energy(state, action, next_state).mean()
+
+    def encode(self, obs):
+        enc = self.encoder(obs)
+        return enc, 0.0
+
+    def contrastive_loss(self, obs, action, next_obs, reward=None, target=None):
+
+        # Added for compatibility
+        action = torch.argmax(action, dim = 1)
+
+        objs = self.obj_extractor(obs)
+        next_objs = self.obj_extractor(next_obs)
+
+        state = self.obj_encoder(objs)
+        next_state = self.obj_encoder(next_objs)
+
+        # Sample negative state across episodes at random
+        batch_size = state.size(0)
+        perm = np.random.permutation(batch_size)
+        neg_state = state[perm]
+
+        self.pos_loss = self.energy(state, action, next_state)
+        zeros = torch.zeros_like(self.pos_loss)
+        
+        self.pos_loss = self.pos_loss.mean()
+        self.neg_loss = torch.max(
+            zeros, self.hinge - self.energy(
+                state, action, neg_state, no_trans=True)).mean()
+
+        loss = self.pos_loss + self.neg_loss
+
+        return loss
+
+    def forward(self, obs):
+        return self.obj_encoder(self.obj_extractor(obs))
+
 class MLPTransition(nn.Module):
     def __init__(self, state_dim, num_actions, hidden_dim, output_dim):
         super().__init__()
@@ -667,13 +821,13 @@ class MLPTransition(nn.Module):
         self.state_encoder = nn.Linear(state_dim, hidden_dim)
         self.output_dim = output_dim
         self.decoder = nn.Sequential(OrderedDict(
-            activation0=nn.ReLU(),
+            activation0=nn.ReLU(inplace=True),
             layer1=nn.Linear(2 * hidden_dim, hidden_dim),
             norm1=nn.LayerNorm(hidden_dim),
-            activation1=nn.ReLU(),
+            activation1=nn.ReLU(inplace=True),
             layer2=nn.Linear(hidden_dim, hidden_dim * 2),
             norm2=nn.LayerNorm(hidden_dim * 2),
-            activation2=nn.ReLU(),
+            activation2=nn.ReLU(inplace=True),
             out_layer=nn.Linear(hidden_dim * 2, output_dim)
         ))
 

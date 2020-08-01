@@ -13,11 +13,12 @@ import re
 
 from itertools import chain
 from torch.utils import data
+import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 
 from cswm import utils
-from cswm.models.modules import CausalTransitionModel, ContrastiveSWM
+from cswm.models.modules import CausalTransitionModel, ContrastiveSWM, ContrastiveSWMFinal
 
 from cswm.utils import OneHot
 
@@ -165,11 +166,12 @@ obs = next(iter(train_loader))[0]
 input_shape = obs[0].size()
 
 if args.cswm:
-    model = ContrastiveSWM(
+    model = ContrastiveSWMFinal(
         embedding_dim=args.embedding_dim,
         hidden_dim=args.hidden_dim,
         action_dim=args.action_dim,
         input_dims=input_shape,
+        input_shape=input_shape,
         num_objects=args.num_objects,
         sigma=args.sigma,
         hinge=args.hinge,
@@ -207,44 +209,58 @@ else:
     print(f'Number of parameters: {num_enc+num_dec+num_tr}')
 
 model.apply(utils.weights_init)
-
-
+criteria = nn.BCEWithLogitsLoss(reduction='sum')
 
 def evaluate(model_file, valid_loader, train_encoder = True, train_decoder = True, train_transition = False):
     model.eval()
     valid_loss = 0.0
 
-    for batch_idx, data_batch in enumerate(valid_loader):
-        data_batch = [tensor.to(device) for tensor in data_batch]
-        obs, action, next_obs, _, _ = data_batch
-        
+    with torch.no_grad():
+        for batch_idx, data_batch in enumerate(valid_loader):
+            data_batch = [tensor.to(device) for tensor in data_batch]
+            obs, action, next_obs, _, _ = data_batch
 
-        loss = 0.0
-        if not args.cswm:
-            state, kl_loss = model.encode(obs)
+            if not args.cswm:
+                state, kl_loss = model.encode(obs)
 
-            if train_encoder or train_decoder:
-                rec_state = torch.sigmoid(model.decoder(state))
-                loss += (F.binary_cross_entropy(
-                    rec_state, obs, reduction='sum') + kl_loss)
-            if train_transition:
-                next_state, _ = model.encode(next_obs)
+                if train_encoder and train_decoder and not train_transition:
+                    rec_state = model.decoder(state)
+                    loss = (criteria(rec_state, obs) + kl_loss) / obs.size(0)
 
-                transition_loss, _, pred_next = model.transition(
-                    state, action, next_state)
-                loss += transition_loss
+                elif train_encoder and train_decoder and train_transition:
+                    next_state, kl_next = model.encode(next_obs)
+                    
+                    transition_loss, _, pred_next = model.transition(
+                            state, action, next_state)
 
-                if train_encoder and train_decoder:
-                    loss += F.binary_cross_entropy(torch.sigmoid(model.decoder(pred_next)), next_obs,
-                                    reduction='sum')
-        else:
-            loss = model.contrastive_loss(*data_batch)
-        loss /= obs.size(0)
+                    rec_state = model.decoder(state)
+                    rec_next = model.decoder(pred_next)
 
-        valid_loss += loss.item()
-    avg_loss = valid_loss / len(valid_loader)
-    print('====> Average valid loss: {:.6f}'.format(avg_loss))
-    return avg_loss
+                    loss = (criteria(rec_state, obs) + kl_loss + criteria(rec_next, next_obs) 
+                            + kl_next + transition_loss) / obs.size(0)
+                elif train_transition:
+                    next_state, kl_next = model.encode(next_obs)
+                    transition_loss, _, _ = model.transition(state, action, next_state)
+                    loss = transition_loss / obs.size(0)
+            else:
+                state, _ = model.encode(obs)
+                if train_encoder or train_transition:
+                    loss = model.contrastive_loss(*data_batch)
+                    if train_decoder:
+                        next_state = model.transition(state, action)
+                        rec_state = model.decoder(state)
+                        rec_next = model.decoder(next_state)
+
+                        loss += criteria(rec_state, obs) / obs.size(0)
+                        loss += criteria(rec_next, next_obs) / obs.size(0)
+                else:
+                    rec_state = model.decoder(state)
+                    loss = criteria(rec_state, obs) / obs.size(0)
+
+            valid_loss += loss.item()
+        avg_loss = valid_loss / len(valid_loader)
+        print('====> Average valid loss: {:.6f}'.format(avg_loss))
+        return avg_loss
 
 def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
           train_transition=False):
@@ -260,12 +276,19 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
 
         optimizer = torch.optim.Adam(parameters, lr = lr)
     else:
-        optimizer = torch.optim.Adam(model.parameters(), lr = lr)
+        parameters = []
+        if train_decoder:
+            parameters = chain(parameters, model.decoder_parameters())
+        if train_encoder:
+            parameters = chain(parameters, model.encoder_parameters())
+        if train_transition:
+            parameters = chain(parameters, model.transition_parameters())
+
+        optimizer = torch.optim.Adam(parameters, lr = lr)
 
     print('Starting model training...')
     best_loss = 1e9
     for epoch in range(1, max_epochs + 1):
-        model.train()
         train_loss = 0
 
         iterator = tqdm.tqdm(train_loader, desc=f'Epoch {epoch}',
@@ -277,31 +300,43 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
 
             optimizer.zero_grad()
 
-            
-            loss = 0.0
-
             if not args.cswm:
                 state, kl_loss = model.encode(obs)
-                if train_encoder or train_decoder:
-                    rec_state = torch.sigmoid(model.decoder(state))
-                    loss += (F.binary_cross_entropy(
-                        rec_state, obs, reduction='sum') + kl_loss)
 
-                if train_transition:
-                    next_state, _ = model.encode(next_obs)
+                if train_encoder and train_decoder and not train_transition:
+                    rec_state = model.decoder(state)
+                    loss = (criteria(rec_state, obs) + kl_loss) / obs.size(0)
+
+                elif train_encoder and train_decoder and train_transition:
+                    next_state, kl_next = model.encode(next_obs)
 
                     transition_loss, _, pred_next = model.transition(
-                        state, action, next_state)
-                    loss += transition_loss
+                            state, action, next_state)
 
-                    if train_encoder and train_decoder:
-                        loss += F.binary_cross_entropy(torch.sigmoid(model.decoder(pred_next)), next_obs,
-                                        reduction='sum')
+                    rec_state = model.decoder(state)
+                    rec_next = model.decoder(pred_next)
+   
+                    loss = (criteria(rec_state, obs) + kl_loss + criteria(rec_next, next_obs) 
+                            + kl_next + transition_loss) / obs.size(0)
+                elif train_transition:
+                    next_state, kl_next = model.encode(next_obs)
+                    transition_loss, _, _ = model.transition(state, action, next_state)
+                    loss = transition_loss / obs.size(0)
             else:
-                loss = model.contrastive_loss(*data_batch)
+                state, _ = model.encode(obs)
+                if train_encoder or train_transition:
+                    loss = model.contrastive_loss(*data_batch)
+                    if train_decoder:
+                        next_state = model.transition(state, action)
+                        rec_state = model.decoder(state)
+                        rec_next = model.decoder(next_state)
 
-            loss /= obs.size(0)
-
+                        loss += criteria(rec_state, obs) / obs.size(0)
+                        loss += criteria(rec_next, next_obs) / obs.size(0)
+                else:
+                    rec_state = model.decoder(state)
+                    loss = criteria(rec_state, obs) / obs.size(0)
+ 
             loss.backward()
             train_loss += loss.item()
 
@@ -325,37 +360,14 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
             best_loss = avg_loss
             torch.save(model.state_dict(), model_file)
 
-def reload_model(model, filename):
-    #only reloading encoder
-    encoder_state = model.encoder.state_dict()
-    decoder_state = model.decoder.state_dict()
-    model_dict = model.state_dict()
-    reload_dict = torch.load(filename)
-
-    for name, param in reload_dict.items():
-        if name.startswith("encoder.") or name.startswith("decoder."):
-            if name not in model_dict:
-                import pdb; pdb.set_trace()
-            else:
-                model_dict[name].copy_(param)
-        else:
-            if not name.startswith("transition_nets."):
-                print(name)
-
-
-if args.reload:
-    if os.path.isfile(reload_file):
-        reload_model(model, reload_file)
-        evaluate(model_file, train_loader, False)
-    else:
-        print (str(reload_file) + "File not exist")
-
 if not args.cswm:
     train(args.pretrain_epochs, model_file, lr=args.lr, train_encoder=True, train_transition=False, train_decoder=True)
     train(args.epochs, model_file, lr=args.transit_lr, train_encoder=False, train_transition=True, train_decoder=False)
     train(args.epochs, finetune_file, lr=args.lr, train_encoder=True, train_transition=True, train_decoder=True)
 else:
-    train(args.epochs, model_file, lr = args.lr)
+    train(args.epochs, model_file, lr = args.lr, train_encoder=True, train_transition=True, train_decoder=False)
+    train(args.epochs, model_file, lr = args.lr, train_encoder=False, train_transition=False, train_decoder=True)
+    train(args.epochs, finetune_file, lr = args.lr, train_encoder=True, train_transition=True, train_decoder=True)
 
 if args.eval_dataset is not None:
     utils.eval_steps(

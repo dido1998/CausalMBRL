@@ -12,6 +12,8 @@ from torch import nn
 import torch.nn.functional as F
 from torchvision.utils import save_image
 
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
@@ -84,13 +86,13 @@ def load_list_dict_h5py(fname):
 def get_cmap(cmap, mode):
     length = 9
     if cmap == 'Sets':
-        if mode is 'Train':
+        if "FewShot" not in mode:
             cmap = plt.get_cmap('Set1')
         else:
             cmap = [plt.get_cmap('Set1'), plt.get_cmap('Set3')]
             length = [9,12]
     else :
-        if mode is 'Train':
+        if "FewShot" not in mode:
             cmap = plt.get_cmap('Pastel1')
         else:
             cmap = [plt.get_cmap('Pastel1'), plt.get_cmap('Pastel2')]
@@ -122,7 +124,7 @@ def observed_colors(num_colors, mode):
     return c
 
 def unobserved_colors(cmap, num_colors, mode, new_colors=None):
-    if mode == 'Train':
+    if mode in ['Train', 'ZeroShotShape']:
         cm, length = get_cmap(cmap, mode)
         weights = np.sort(np.random.choice(length, num_colors, replace=False))
         colors = [cm(i/length) for i in weights]
@@ -173,9 +175,9 @@ def pairwise_distance_matrix(x, y):
 
 def get_act_fn(act_fn):
     if act_fn == 'relu':
-        return nn.ReLU()
+        return nn.ReLU(inplace=True)
     elif act_fn == 'leaky_relu':
-        return nn.LeakyReLU()
+        return nn.LeakyReLU(inplace=True)
     elif act_fn == 'elu':
         return nn.ELU()
     elif act_fn == 'sigmoid':
@@ -365,11 +367,11 @@ def evaluate(model, loader, *,
             pred_state = state
             for i in range(num_steps):
                 pred_state = model.transition(pred_state, actions[i])
-            if not cswm:
+            if True or not cswm:
                 rec_obs = torch.sigmoid(model.decoder(pred_state))
                 rec_orig = torch.sigmoid(model.decoder(state))
 
-            if batch_idx == 0:
+            if False and batch_idx == 0:
                 if not os.path.exists(str(save_folder) + f'/Figures/'):
                     os.mkdir(str(save_folder) + f'/Figures/')
                 if not os.path.exists(str(save_folder) + f'/Figures/{name}'):
@@ -380,8 +382,7 @@ def evaluate(model, loader, *,
                 if not cswm:
                     save_image(rec_orig[:16], str(save_folder) +  f'/Figures/{name}/rec_orig_{num_steps}.png', pad_value=1.0, nrow=4)
                     save_image(rec_obs[:16], str(save_folder) +  f'/Figures/{name}/rec_step_{num_steps}.png', pad_value=1.0, nrow=4)
-            rec = 0
-            if not cswm:
+            if True or not cswm:
                 rec += F.binary_cross_entropy(
                         rec_obs, next_obs, reduction='sum').item()
 

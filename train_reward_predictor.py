@@ -13,6 +13,16 @@ from cswm import utils
 from cswm.models.modules import RewardPredictor, CausalTransitionModel, ContrastiveSWM
 from cswm.utils import OneHot
 
+import sys
+import datetime
+import os
+import pickle
+from pathlib import Path
+
+import numpy as np
+
+from itertools import chain
+
 torch.backends.cudnn.deterministic = True
 
 parser = argparse.ArgumentParser()
@@ -25,6 +35,7 @@ parser.add_argument('--no-cuda', action='store_true', default=False,
 parser.add_argument('--finetune', action='store_true', default=False,
                     help='Whether to use finetuned model')
 parser.add_argument('--random', action='store_true', default=False)
+parser.add_argument('--epochs', type=int, default=50)
 args_eval = parser.parse_args()
 
 
@@ -42,15 +53,15 @@ else:
     reward_model_file = args_eval.save_folder / 'reward_model.pt'
     log_file = args_eval.save_folder / 'reward_log.txt'
 
+with open(meta_file, 'rb') as f:
+    args = pickle.load(f)['args']
+
 handlers = [logging.FileHandler(log_file, 'a')]
 if args.silent:
     handlers.append(logging.StreamHandler(sys.stdout))
 logging.basicConfig(level=logging.INFO, format='%(message)s', handlers=handlers)
 logger = logging.getLogger()
 print = logger.info
-
-with open(meta_file, 'rb') as f:
-    args = pickle.load(f)['args']
 
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
@@ -76,12 +87,12 @@ print("Loading model...")
 obs = next(iter(train_loader))[0]
 input_shape = obs[0].size()
 
-print("VAE: ", args.vae)
-print("Modular: ", args.modular)
-print("Learn Edges: ", args.learn_edges)
-print("Encoder: ", args.encoder)
-print("Num Objects: ", args.num_objects)
-print("Dataset: ", args.dataset)
+print(f"VAE: {args.vae}")
+print(f"Modular: {args.modular}")
+print(f"Learn Edges: {args.learn_edges}")
+print(f"Encoder: {args.encoder}")
+print(f"Num Objects: {args.num_objects}")
+print(f"Dataset: {args.dataset}")
 
 if args.cswm:
     model = ContrastiveSWM(
@@ -144,12 +155,14 @@ def evaluate(valid_loader):
         obs, _, _, reward, target = data_batch
 
         state, _ = model.encode(obs)
+        state = state.view(state.shape[0], args.num_objects * args.embedding_dim)
         reward_state, _ = model.encode(target)
+        reward_state = reward_state.view(state.shape[0], args.num_objects * args.embedding_dim)
 
         state_emb = torch.cat([state, reward_state], dim=1)
         reward_pred = Reward_Model(state_emb).view(reward.shape)
 
-        loss = F.mse_loss(reward_pred, reward)
+        loss = F.l1_loss(reward_pred, reward * 16)
 
         valid_loss += loss.item()
     
@@ -177,12 +190,14 @@ def train(max_epochs, lr):
             optimizer.zero_grad()
 
             state, _ = model.encode(obs)
+            state = state.view(state.shape[0], args.num_objects * args.embedding_dim)
             reward_state, _ = model.encode(target)
+            reward_state = reward_state.view(state.shape[0], args.num_objects * args.embedding_dim)
 
             state_emb = torch.cat([state, reward_state], dim=1)
             reward_pred = Reward_Model(state_emb).view(reward.shape)
 
-            loss = F.mse_loss(reward_pred, reward)
+            loss = F.l1_loss(reward_pred, reward * 16)
 
             loss.backward()
             train_loss += loss.item()
@@ -207,4 +222,4 @@ def train(max_epochs, lr):
             best_loss = avg_loss
             torch.save(Reward_Model.state_dict(), reward_model_file)
 
-train(args.epochs, lr = args.lr)
+train(args_eval.epochs, lr = args.lr)

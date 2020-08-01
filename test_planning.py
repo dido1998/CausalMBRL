@@ -6,11 +6,16 @@ from tqdm import tqdm
 import envs
 import gym
 import torch
+import torch.nn.functional as F
 
-from cswm.models.modules import CausalTransitionModel, ContrastiveSWM, RewardPredictor
+from cswm.models.modules import CausalTransitionModel, ContrastiveSWM, RewardPredictor, ContrastiveSWMFinal
+
 from cswm import utils
 from cswm.utils import OneHot
 from torch.utils import data
+
+num_steps = 5
+num_eval = 100
 
 def get_best_action(env):
     n = env.action_space.n
@@ -36,7 +41,9 @@ def get_best_model_action(obs, target, action_space, model, reward_model):
         obs = torch.tensor(obs).cuda().float().unsqueeze(0)
 
         state, _ = model.encode(obs)
+        state = state.view(state.shape[0], args.num_objects * args.embedding_dim)
         target_state, _ = model.encode(target)
+        target_state = target_state.view(target_state.shape[0], args.num_objects * args.embedding_dim)
 
         emb = torch.cat([state, target_state], dim=1)
 
@@ -48,12 +55,35 @@ def get_best_model_action(obs, target, action_space, model, reward_model):
 
     return best_action
 
-def planning_model(env, model, reward_model, episode_count, num_steps=20):
+def get_best_model_action_transition(state, target_state, action_space, model, reward_model):
+    n = env.action_space.n
+    best_reward = -np.inf
+    best_action = None
+    state_out = None
+
+    for i in range(n):
+        action = F.one_hot(torch.tensor(i).long(), num_classes=n).cuda().float().unsqueeze(0)
+        next_state = model.transition(state, action)
+
+        emb = torch.cat([next_state.view(next_state.shape[0], args.num_objects * args.embedding_dim),
+                         target_state.view(target_state.shape[0], args.num_objects * args.embedding_dim)],
+                         dim = 1)
+
+        reward_pred = reward_model(emb).detach().cpu().item()
+
+        if reward_pred > best_reward:
+            best_reward = reward_pred
+            best_action = i 
+            state_out = next_state
+
+    return best_action, state_out
+
+def planning_model(env, model, reward_model, episode_count):
     action_space = env.action_space
     rewards = []
 
     for _ in tqdm(range(episode_count), leave=False):
-        obs, target = env.reset()
+        obs, target = env.reset(num_steps=num_steps)
 
         for i in range(num_steps):
             action = get_best_model_action(obs[1], target[1], 
@@ -64,18 +94,45 @@ def planning_model(env, model, reward_model, episode_count, num_steps=20):
         rewards.append(reward)
 
     rewards = np.array(rewards)
-    success = rewards == 0.0
+    success = rewards == 0.0 
 
     print("Mean: ", np.mean(rewards))
     print("Standard Deviation: ", np.std(rewards))
     print("Success Rate: ", np.mean(success))
 
-def planning_best(env, episode_count, num_steps=20):
+def planning_model_transition(env, model, reward_model, episode_count):
     action_space = env.action_space
     rewards = []
 
     for _ in tqdm(range(episode_count), leave=False):
-        _, _ = env.reset()
+        obs, target = env.reset(num_steps=num_steps)
+        obs = torch.tensor(obs[1]).cuda().float().unsqueeze(0)
+        target = torch.tensor(target[1]).cuda().float().unsqueeze(0)
+
+        obs_state, _ = model.encode(obs)
+        target_state, _ = model.encode(target)
+
+        for i in range(num_steps):
+            action, obs_state = get_best_model_action_transition(obs_state, target_state,
+                action_space, model, reward_model)
+
+            _, reward, _, _ = env.step(action)
+
+        rewards.append(reward)
+
+    rewards = np.array(rewards)
+    success = rewards == 0.0 
+
+    print("Mean: ", np.mean(rewards))
+    print("Standard Deviation: ", np.std(rewards))
+    print("Success Rate: ", np.mean(success))
+
+def planning_best(env, episode_count):
+    action_space = env.action_space
+    rewards = []
+
+    for _ in tqdm(range(episode_count), leave=False):
+        _, _ = env.reset(num_steps=num_steps)
 
         for i in range(num_steps):
             action = get_best_action(env)
@@ -90,12 +147,12 @@ def planning_best(env, episode_count, num_steps=20):
     print("Standard Deviation: ", np.std(rewards))
     print("Success Rate: ", np.mean(success))
 
-def planning_random(env, episode_count, num_steps=20):
+def planning_random(env, episode_count):
     action_space = env.action_space
     rewards = []
 
     for _ in tqdm(range(episode_count), leave=False):
-        _, _ = env.reset()
+        _, _ = env.reset(num_steps=num_steps)
 
         for i in range(num_steps):
             action = action_space.sample()
@@ -122,7 +179,6 @@ parser.add_argument('--random', action='store_true', default=False,
 
 args_eval = parser.parse_args()
 
-num_eval = 1000
 meta_file = args_eval.save_folder / 'metadata.pkl'
 
 finetune_model_file = args_eval.save_folder / 'finetuned_model.pt'
@@ -155,7 +211,7 @@ print("Num Objects: ", args.num_objects)
 print("Dataset: ", args.dataset)
 
 if args.cswm:
-    model = ContrastiveSWM(
+    model = ContrastiveSWMFinal(
         embedding_dim=args.embedding_dim,
         hidden_dim=args.hidden_dim,
         action_dim=args.action_dim,
@@ -206,6 +262,7 @@ with gym.make('WShapesRL-Observed-Train-3-Blues-v0') as env:
 
         print("Random Model Planning: ")
         planning_model(env, model, Reward_Model, num_eval)
+        planning_model_transition(env, model, Reward_Model, num_eval)
         print()
 
     if args_eval.finetune:
@@ -217,6 +274,7 @@ with gym.make('WShapesRL-Observed-Train-3-Blues-v0') as env:
 
         print("Finetuned Model Planning: ")
         planning_model(env, model, Reward_Model, num_eval)
+        planning_model_transition(env, model, Reward_Model, num_eval)
         print()
 
     model.load_state_dict(torch.load(model_file))
@@ -227,4 +285,5 @@ with gym.make('WShapesRL-Observed-Train-3-Blues-v0') as env:
 
     print("Model Planning: ")
     planning_model(env, model, Reward_Model, num_eval)
+    planning_model_transition(env, model, Reward_Model, num_eval)
     print()

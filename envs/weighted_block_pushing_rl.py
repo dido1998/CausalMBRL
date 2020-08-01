@@ -245,10 +245,10 @@ class BlockPushingRL(gym.Env):
             distance += np.abs(self.objects[i].pos.x - target_objects[i].pos.x) +\
                         np.abs(self.objects[i].pos.y - target_objects[i].pos.y)
 
-        distance /= ((self.height - 1) * (self.width - 1) * self.num_objects)
+        distance /= self.num_objects
         return -distance
 
-    def reset(self):
+    def reset(self, num_steps=10):
         if self.typ == 'FixedUnobserved':
             self.shapes = np.arange(self.num_objects)
         elif self.mode == 'ZeroShotShape':
@@ -288,7 +288,7 @@ class BlockPushingRL(gym.Env):
             np.zeros([3, self.width * 10, self.height * 10]))
         self.target_objects = self.objects.copy()
 
-        self.get_target()
+        self.get_target(num_steps=num_steps)
 
         return (self.get_state(), self.render()), self.target
 
@@ -400,7 +400,7 @@ class BlockPushingRL(gym.Env):
 
         return reward, next_obs
 
-    def get_target(self, num_steps=10):
+    def get_target(self, num_steps):
         objects = self.objects.copy()
 
         for i in range(num_steps):
