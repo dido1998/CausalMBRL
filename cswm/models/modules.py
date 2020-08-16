@@ -190,7 +190,7 @@ class CausalTransitionModel(nn.Module):
                 state, action)
         elif self.gnn:
             action = torch.argmax(action, dim=1)
-            pred_next_state = self.transition_model(pred_state, action)
+            pred_next_state = self.transition_nets(state, action)
         else:
             pred_next_state = self.transition_nets(state=state, action=action)
 
@@ -213,7 +213,7 @@ class CausalTransitionModelLSTM(nn.Module):
         num_objects: Number of object slots.
         rim: If False uses LSTM else RIMs (goyal et al)
     """
-    def __init__(self, embedding_dim, input_dims, hidden_dim, action_dim,
+    def __init__(self, embedding_dim_per_object, input_dims, hidden_dim, action_dim,
                  num_objects, state_dim=32, input_shape=[3, 50, 50],
                  predict_diff=True, encoder='large', num_graphs=10,
                  modular=False, learn_edges=False, vae=False, rim = False, multiplier=1):
@@ -236,10 +236,10 @@ class CausalTransitionModelLSTM(nn.Module):
         width_height = input_dims[1:]
 
         if self.modular:
-            self.embedding_dim = embedding_dim
+            self.embedding_dim = embedding_dim_per_object
             flat = False
         else:
-            self.embedding_dim = embedding_dim * num_objects
+            self.embedding_dim = embedding_dim_per_object * num_objects
             flat = True
 
         if encoder == 'small':
@@ -378,11 +378,7 @@ class CausalTransitionModelLSTM(nn.Module):
             x = self.transition_linear(h)
         if self.predict_diff:
             x = x + x_orig
-        if next_state is not None:
-            loss = self.mse_loss(x, next_state)
-            return x, hidden, loss
-        else:
-            return x, hidden
+        return x, hidden
 
     def forward(self, obs):
         return self.obj_encoder(self.obj_extractor(obs))

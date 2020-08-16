@@ -221,7 +221,6 @@ class LSTMDataset(data.Dataset):
         else:
             self.action_transform = action_transform
         self.experience_buffer = load_list_dict_h5py(hdf5_file)
-        print(len(self.experience_buffer))
     
     def __len__(self):
         return len(self.experience_buffer)
@@ -231,16 +230,25 @@ class LSTMDataset(data.Dataset):
         obs = []
         for o in self.experience_buffer[idx]['obs']:
             obs.append(to_float(o))
+
         acts = []
         for a in self.experience_buffer[idx]['action']:
             acts.append(to_float(self.action_transform(a)))
-        obs = np.concatenate(obs, axis = 0)
-        acts = np.concatenate(acts, axis = 0)
 
-        return obs, acts
+        rewards = []
+        for a in self.experience_buffer[idx]['reward']:
+            rewards.append(a)
 
+        targets = []
+        for t in self.experience_buffer[idx]['target']:
+            targets.append(to_float(t))
 
+        obs = np.stack(obs)
+        acts = np.stack(acts)
+        rewards = np.array(rewards)
+        targets = np.stack(targets)
 
+        return obs, acts, rewards, targets
 
 class StateTransitionsDataset(data.Dataset):
     """Create dataset of (o_t, a_t, o_{t+1}) transitions from replay buffer."""

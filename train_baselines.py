@@ -18,7 +18,7 @@ import torch.nn.functional as F
 import torchvision
 
 from cswm import utils
-from cswm.models.modules import CausalTransitionModel, ContrastiveSWM, ContrastiveSWMFinal
+from cswm.models.modules import CausalTransitionModel
 from cswm.models.losses import *
 
 from cswm.utils import OneHot
@@ -274,9 +274,14 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
                 next_recon = model.decoder(next_state)
 
                 if train_encoder and train_decoder:
-                    loss += 0.5 * (image_loss(recon, obs) + image_loss(next_recon, next_obs))
+                    loss += image_loss(recon, obs)
                     if args.vae:
-                        loss += 0.5 * (kl_loss(mean_var[0], mean_var[1]) + kl_loss(next_mean_var[0], next_mean_var[1]))
+                        loss += kl_loss(mean_var[0], mean_var[1])
+                    if train_transition:
+                        loss += image_loss(next_recon, next_obs)
+                        if args.vae:
+                            loss += kl_loss(next_mean_var[0], next_mean_var[1])
+                
                 if train_transition:
                     loss += transition_loss(pred_state, next_state)
 
