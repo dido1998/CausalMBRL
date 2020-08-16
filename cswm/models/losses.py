@@ -1,11 +1,12 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 im_criterion = nn.BCEWithLogitsLoss(reduction='sum')
 transition_criterion = nn.MSELoss(reduction='sum')
 
-def energy(state, action, next_state, pred_next_state, no_trans=False,
+def energy(state, action, next_state, pred_next_state=None, no_trans=False,
             sigma=0.5):
     norm = 0.5 / (sigma ** 2)
 
@@ -16,7 +17,7 @@ def energy(state, action, next_state, pred_next_state, no_trans=False,
 
     return norm * diff.pow(2).sum(2).mean(1)
 
-def contrastive_loss(self, state, action, next_state, pred_next_state, 
+def contrastive_loss(state, action, next_state, pred_next_state, 
                         hinge=1., sigma=0.5):
     batch_size = state.size(0)
     if len(state.shape) == 2:

@@ -132,7 +132,6 @@ else:
 meta_file = save_folder / 'metadata.pkl'
 model_file = save_folder / 'model.pt'
 finetune_file = save_folder / 'finetuned_model.pt'
-reload_file = args.reload_folder / 'model.pt'
 
 log_file = save_folder / 'log.txt'
 
@@ -181,10 +180,8 @@ model = CausalTransitionModel(
     action_dim=args.action_dim,
     input_dims=input_shape,
     input_shape=input_shape,
-    num_graphs=args.num_graphs,
     modular=args.modular,
     predict_diff=args.predict_diff,
-    learn_edges=args.learn_edges,
     vae=args.vae,
     num_objects=args.num_objects,
     encoder=args.encoder,
@@ -195,14 +192,14 @@ model = CausalTransitionModel(
     ignore_action=args.ignore_action,
     copy_action=args.copy_action).to(device)
 
-    num_enc = sum(p.numel() for p in model.encoder_parameters())
-    num_dec = sum(p.numel() for p in model.decoder_parameters())
-    num_tr = sum(p.numel() for p in model.transition_parameters())
+num_enc = sum(p.numel() for p in model.encoder_parameters())
+num_dec = sum(p.numel() for p in model.decoder_parameters())
+num_tr = sum(p.numel() for p in model.transition_parameters())
 
-    print(f'Number of parameters in Encoder: {num_enc}')
-    print(f'Number of parameters in Decoder: {num_dec}')
-    print(f'Number of parameters in Transition: {num_tr}')
-    print(f'Number of parameters: {num_enc+num_dec+num_tr}')
+print(f'Number of parameters in Encoder: {num_enc}')
+print(f'Number of parameters in Decoder: {num_dec}')
+print(f'Number of parameters in Transition: {num_tr}')
+print(f'Number of parameters: {num_enc+num_dec+num_tr}')
 
 model.apply(utils.weights_init)
 
@@ -214,6 +211,8 @@ def evaluate(model_file, valid_loader, train_encoder = True, train_decoder = Tru
         for batch_idx, data_batch in enumerate(valid_loader):
             data_batch = [tensor.to(device) for tensor in data_batch]
             obs, action, next_obs, _, _ = data_batch
+
+            loss = 0.0
 
             if args.contrastive:
                 state, _ = model.encode(obs)
@@ -229,10 +228,11 @@ def evaluate(model_file, valid_loader, train_encoder = True, train_decoder = Tru
                 next_recon = model.decoder(next_state)
 
                 if train_encoder and train_decoder:
-                    loss = image_loss(recon, obs) + image_loss(next_recon, next_obs)
-                    loss += kl_loss(mean_var[0], mean_var[1]) + kl_loss(next_mean_var[0], next_mean_var[1])
-                elif train_transition:
-                    loss = transition_loss(pred_state, next_state)
+                    loss += 0.5 * (image_loss(recon, obs) + image_loss(next_recon, next_obs))
+                    if args.vae:
+                        loss += 0.5 * (kl_loss(mean_var[0], mean_var[1]) + kl_loss(next_mean_var[0], next_mean_var[1]))
+                if train_transition:
+                    loss += transition_loss(pred_state, next_state)
 
                 loss /= obs.size(0)
 
@@ -269,6 +269,8 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
 
             optimizer.zero_grad()
 
+            loss = 0.0
+
             if args.contrastive:
                 state, _ = model.encode(obs)
                 next_state, _ = model.encode(next_obs)
@@ -283,10 +285,11 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
                 next_recon = model.decoder(next_state)
 
                 if train_encoder and train_decoder:
-                    loss = image_loss(recon, obs) + image_loss(next_recon, next_obs)
-                    loss += kl_loss(mean_var[0], mean_var[1]) + kl_loss(next_mean_var[0], next_mean_var[1])
-                elif train_transition:
-                    loss = transition_loss(pred_state, next_state)
+                    loss += 0.5 * (image_loss(recon, obs) + image_loss(next_recon, next_obs))
+                    if args.vae:
+                        loss += 0.5 * (kl_loss(mean_var[0], mean_var[1]) + kl_loss(next_mean_var[0], next_mean_var[1]))
+                if train_transition:
+                    loss += transition_loss(pred_state, next_state)
 
                 loss /= obs.size(0)
 
@@ -318,6 +321,7 @@ if args.contrastive:
 else:
     train(args.pretrain_epochs, model_file, lr=args.lr, train_encoder=True, train_transition=False, train_decoder=True)
     train(args.epochs, model_file, lr=args.transit_lr, train_encoder=False, train_transition=True, train_decoder=False)
+    train(args.epochs, finetune_file, lr=args.lr, train_encoder=True, train_decoder=True, train_transition=True)
 
 if args.eval_dataset is not None:
     utils.eval_steps(

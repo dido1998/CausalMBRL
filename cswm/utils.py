@@ -335,7 +335,10 @@ def save_img(img, name, pad_value=None):
     plt.savefig(name, bbox_inches='tight', pad_inches=0)
 
 def evaluate(model, loader, *,
-             device, batch_size, num_steps, silent=False, name="Default", save_folder = None, cswm = False):
+             device, batch_size, num_steps, silent=False, 
+             name="Default", save_folder=None, contrastive=False):
+
+    criterion = nn.BCEWithLogitsLoss(reduction='sum')
     # topk = [1, 5, 10]
     name = str(name).split('/')[-1]
     topk = [1]
@@ -367,9 +370,9 @@ def evaluate(model, loader, *,
             pred_state = state
             for i in range(num_steps):
                 pred_state = model.transition(pred_state, actions[i])
-            if True or not cswm:
-                rec_obs = torch.sigmoid(model.decoder(pred_state))
-                rec_orig = torch.sigmoid(model.decoder(state))
+            
+            if not contrastive:
+                rec_obs = model.decoder(pred_state)
 
             if False and batch_idx == 0:
                 if not os.path.exists(str(save_folder) + f'/Figures/'):
@@ -382,9 +385,9 @@ def evaluate(model, loader, *,
                 if not cswm:
                     save_image(rec_orig[:16], str(save_folder) +  f'/Figures/{name}/rec_orig_{num_steps}.png', pad_value=1.0, nrow=4)
                     save_image(rec_obs[:16], str(save_folder) +  f'/Figures/{name}/rec_step_{num_steps}.png', pad_value=1.0, nrow=4)
-            if True or not cswm:
-                rec += F.binary_cross_entropy(
-                        rec_obs, next_obs, reduction='sum').item()
+            
+            if not contrastive:
+                rec += criterion(rec_obs, next_obs).item()
 
             pred_states.append(pred_state.cpu())
             next_states.append(next_state.cpu())
@@ -541,21 +544,26 @@ def evaluate_lstm(model, loader, *,
 
 
 def eval_steps(model, steps_array, *,
-               filename, batch_size, device, save_folder, name="Default", action_dim = 5, cswm = False):
+               filename, batch_size, device, save_folder, 
+               name="Default", action_dim = 5, contrastive=False):
     string = ""
     for steps in steps_array:
         print("Loading data...")
+        
         dataset = PathDataset(
             hdf5_file=filename, path_length=steps,
             action_transform=OneHot(model.num_objects * action_dim),
             in_memory=False)
+        
         eval_loader = data.DataLoader(
-            dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+            dataset, batch_size=batch_size, 
+            shuffle=False, num_workers=0)
 
         hits_at, rr_sum, rec, num_samples = evaluate(
             model, eval_loader,
             device=device, batch_size=batch_size,
-            num_steps=steps, name = name + str(steps), save_folder = save_folder, cswm = cswm)
+            num_steps=steps, name = name + str(steps), 
+            save_folder=save_folder, contrastive=contrastive)
 
         print(f'Steps: {steps}')
         for k in [1]:

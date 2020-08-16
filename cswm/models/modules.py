@@ -43,7 +43,7 @@ class CausalTransitionModel(nn.Module):
         num_channels = input_dims[0]
         width_height = input_dims[1:]
 
-        if self.modular:
+        if self.modular or self.gnn:
             self.embedding_dim = embedding_dim_per_object
             flat = False
         else:
@@ -122,8 +122,8 @@ class CausalTransitionModel(nn.Module):
                     )
                 self.transition_nets.append(net)
         elif self.gnn:
-            self.transition_model = TransitionGNN(
-                input_dim=embedding_dim,
+            self.transition_nets = TransitionGNN(
+                input_dim=self.embedding_dim,
                 hidden_dim=hidden_dim,
                 action_dim=action_dim,
                 num_objects=num_objects,
