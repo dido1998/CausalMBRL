@@ -35,8 +35,6 @@ parser.add_argument('--lr', type=float, default=5e-4,
                     help='Learning rate.')
 parser.add_argument('--transit-lr', type=float, default=5e-4,
                     help='Learning rate for transition model.')
-parser.add_argument('--s-lr', type=float, default=5e-3,
-                    help='Learning rate.')
 parser.add_argument('--update-interval', type=int, default=10,
                     help='update interval for structural params.')
 parser.add_argument('--encoder', type=str, default='small',
@@ -51,8 +49,6 @@ parser.add_argument('--modular', action='store_true',
                     help='Is the learned model modular?')
 parser.add_argument('--vae', action='store_true',
                     help='Is the learned encoder decoder model a VAE model?')
-parser.add_argument('--learn-edges', action='store_true',
-                    help='Does the model have learned edges?')
 parser.add_argument('--predict-diff', action='store_true',
                     help='Do we predict the difference of current and next state?')
 parser.add_argument('--hidden-dim', type=int, default=512,
@@ -63,8 +59,6 @@ parser.add_argument('--action-dim', type=int, default=5,
                     help='Dimensionality of action space.')
 parser.add_argument('--num-objects', type=int, default=5,
                     help='Number of object slots in model.')
-parser.add_argument('--num-graphs', type=int, default=10,
-                    help='Number of graphs to sample.')
 parser.add_argument('--ignore-action', action='store_true', default=False,
                     help='Ignore action in GNN transition model.')
 parser.add_argument('--copy-action', action='store_true', default=False,
@@ -101,11 +95,6 @@ parser.add_argument('--name', type=str, default='none',
 parser.add_argument('--save-folder', type=Path,
                     default=Path('checkpoints'),
                     help='Path to checkpoints.')
-parser.add_argument('--reload-folder', type=Path,
-                    default=Path('checkpoints'),
-                    help='Path to reload file.')
-parser.add_argument('--reload', action='store_true',
-                    help='reload encoder, decoder')
 parser.add_argument('--gnn', action = 'store_true', help='use GNN model (Kipf et al)')
 parser.add_argument('--contrastive', action = 'store_true', help='use contrastive loss')
 
