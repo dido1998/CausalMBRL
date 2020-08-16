@@ -22,12 +22,11 @@ class CausalTransitionModel(nn.Module):
         action_dim: Dimensionality of action space.
         num_objects: Number of object slots.
     """
-    def __init__(self, embedding_dim, input_dims, hidden_dim, action_dim,
-                 num_objects, input_shape=[3, 50, 50],
-                 predict_diff=True, encoder='large', num_graphs=10,
-                 modular=False, learn_edges=False, vae=False,
-                 multiplier=1):
-
+    def __init__(self, embedding_dim_per_object, input_dims, hidden_dim, 
+                 action_dim, num_objects, input_shape=[3, 50, 50],
+                 predict_diff=True, encoder='large', modular=False, 
+                 vae=False, gnn=False, multiplier=1, ignore_action=False,
+                 copy_action=False, hinge=1., sigma=0.5):
         super(CausalTransitionModel, self).__init__()
 
         self.hidden_dim = hidden_dim
@@ -35,21 +34,20 @@ class CausalTransitionModel(nn.Module):
         self.num_objects = num_objects
         self.input_shape = input_shape
         self.modular = modular
-        self.learn_edges = learn_edges
         self.predict_diff = predict_diff
-        self.num_graphs = num_graphs
         self.vae = vae
-
-        self.mse_loss = torch.nn.MSELoss(reduction='sum')
+        self.gnn = gnn
+        self.ignore_action = ignore_action
+        self.copy_action = copy_action
 
         num_channels = input_dims[0]
         width_height = input_dims[1:]
 
         if self.modular:
-            self.embedding_dim = embedding_dim
+            self.embedding_dim = embedding_dim_per_object
             flat = False
         else:
-            self.embedding_dim = embedding_dim * num_objects
+            self.embedding_dim = embedding_dim_per_object * num_objects
             flat = True
 
         if encoder == 'small':
@@ -92,23 +90,12 @@ class CausalTransitionModel(nn.Module):
                             output_size=self.input_shape,
                             flat_state=flat)
 
-        if self.modular:
+        if self.modular or self.gnn:
             obj_encoder = EncoderMLP(
                 input_dim=np.prod(width_height),
                 hidden_dim=hidden_dim,
                 output_dim=self.embedding_dim,
                 num_objects=num_objects)
-
-            self.transition_nets = nn.ModuleList()
-
-            for i in range(self.num_objects):
-                net = MLPTransition(
-                    state_dim=self.embedding_dim*self.num_objects,
-                    num_actions=self.num_objects * self.action_dim,
-                    hidden_dim=self.hidden_dim//self.num_objects * multiplier, #change this to overparameterize transition model
-                    output_dim=self.embedding_dim
-                    )
-                self.transition_nets.append(net)
         else:
             if self.vae:
                 obj_encoder = EncoderMLP(
@@ -123,6 +110,26 @@ class CausalTransitionModel(nn.Module):
                     hidden_dim=hidden_dim, num_objects=num_objects,
                     flatten_input=True)
 
+        if self.modular:
+            self.transition_nets = nn.ModuleList()
+
+            for i in range(self.num_objects):
+                net = MLPTransition(
+                    state_dim=self.embedding_dim*self.num_objects,
+                    num_actions=self.num_objects * self.action_dim,
+                    hidden_dim=self.hidden_dim//self.num_objects * multiplier, #change this to overparameterize transition model
+                    output_dim=self.embedding_dim
+                    )
+                self.transition_nets.append(net)
+        elif self.gnn:
+            self.transition_model = TransitionGNN(
+                input_dim=embedding_dim,
+                hidden_dim=hidden_dim,
+                action_dim=action_dim,
+                num_objects=num_objects,
+                ignore_action=ignore_action,
+                copy_action=copy_action)
+        else:
             self.transition_nets = MLPTransition(
                 state_dim=self.embedding_dim, output_dim=self.embedding_dim,
                 num_actions=self.num_objects * self.action_dim, hidden_dim=self.hidden_dim)
@@ -150,10 +157,6 @@ class CausalTransitionModel(nn.Module):
     def decoder_parameters(self):
         return self.decoder.parameters()
 
-    def func_parameters(self):
-        s = set(self.structural_parameters())
-        return (p for p in super().parameters() if p not in s)
-
     def encode(self, obs):
         enc = self.encoder(obs)
         if self.vae:
@@ -165,14 +168,11 @@ class CausalTransitionModel(nn.Module):
                 z = mu + eps * sigma
             else:
                 z = mu
-            return z, -0.5 * torch.sum(1 + logvar - \
-                mu.pow(2) - logvar.exp())
+            return z, (mu, logvar)
         else:
-            return enc, 0.0
+            return enc, None
 
-    def modular_transition(self, state, action, next_state=None):
-        loss = []
-
+    def modular_transition(self, state, action):
         pred_next_state = []
         for i in range(self.num_objects):
             ins = state.view(state.shape[0], -1)
@@ -184,24 +184,20 @@ class CausalTransitionModel(nn.Module):
 
         return pred_next_state
 
-    def transition(self, state, action, next_state=None):
+    def transition(self, state, action):
         if self.modular:
             pred_next_state = self.modular_transition(
-                state, action, next_state)
+                state, action)
+        elif self.gnn:
+            action = torch.argmax(action, dim=1)
+            pred_next_state = self.transition_model(pred_state, action)
         else:
             pred_next_state = self.transition_nets(state=state, action=action)
 
         if self.predict_diff:
             pred_next_state += state
-        if next_state is None:
-            loss = None
-        else:
-            loss = self.mse_loss(pred_next_state, next_state)
 
-        if next_state is None:
-            return pred_next_state
-        else:
-            return loss, None, pred_next_state
+        return pred_next_state
 
     def forward(self, obs):
         return self.obj_encoder(self.obj_extractor(obs))
@@ -334,9 +330,6 @@ class CausalTransitionModelLSTM(nn.Module):
         self.width = width_height[0]
         self.height = width_height[1]
 
-    def structural_parameters(self):
-        return iter([self.gamma])
-
     def transition_parameters(self):
         parameters = []
         if isinstance(self.transition_nets, list):
@@ -352,10 +345,6 @@ class CausalTransitionModelLSTM(nn.Module):
 
     def decoder_parameters(self):
         return self.decoder.parameters()
-
-    def func_parameters(self):
-        s = set(self.structural_parameters())
-        return (p for p in super().parameters() if p not in s)
 
     def encode(self, obs):
         enc = self.encoder(obs)
@@ -397,141 +386,6 @@ class CausalTransitionModelLSTM(nn.Module):
 
     def forward(self, obs):
         return self.obj_encoder(self.obj_extractor(obs))
-
-class ContrastiveSWM(nn.Module):
-    """Main module for a Contrastively-trained Structured World Model (C-SWM).
-    Args:
-        embedding_dim: Dimensionality of abstract state space.
-        input_dims: Shape of input observation.
-        hidden_dim: Number of hidden units in encoder and transition model.
-        action_dim: Dimensionality of action space.
-        num_objects: Number of object slots.
-    """
-    def __init__(self, embedding_dim, input_dims, hidden_dim, action_dim,
-                 num_objects, hinge=1., sigma=0.5, encoder='large',
-                 ignore_action=False, copy_action=False):
-        super(ContrastiveSWM, self).__init__()
-
-        self.hidden_dim = hidden_dim
-        self.embedding_dim = embedding_dim
-        self.action_dim = action_dim
-        self.num_objects = num_objects
-        self.hinge = hinge
-        self.sigma = sigma
-        self.ignore_action = ignore_action
-        self.copy_action = copy_action
-        
-        self.pos_loss = 0
-        self.neg_loss = 0
-
-        num_channels = input_dims[0]
-        width_height = input_dims[1:]
-
-        if encoder == 'small':
-            self.obj_extractor = EncoderCNNSmall(
-                input_dim=num_channels,
-                hidden_dim=hidden_dim // 16,
-                num_objects=num_objects)
-            # CNN image size changes
-            width_height = np.array(width_height)
-            width_height = width_height // 10
-        elif encoder == 'medium':
-            self.obj_extractor = EncoderCNNMedium(
-                input_dim=num_channels,
-                hidden_dim=hidden_dim // 16,
-                num_objects=num_objects)
-            # CNN image size changes
-            width_height = np.array(width_height)
-            width_height = width_height // 5
-        elif encoder == 'large':
-            self.obj_extractor = EncoderCNNLarge(
-                input_dim=num_channels,
-                hidden_dim=hidden_dim // 16,
-                num_objects=num_objects)
-
-        self.obj_encoder = EncoderMLP(
-            input_dim=np.prod(width_height),
-            hidden_dim=hidden_dim,
-            output_dim=embedding_dim,
-            num_objects=num_objects)
-
-        self.transition_model = TransitionGNN(
-            input_dim=embedding_dim,
-            hidden_dim=hidden_dim,
-            action_dim=action_dim,
-            num_objects=num_objects,
-            ignore_action=ignore_action,
-            copy_action=copy_action)
-
-        self.width = width_height[0]
-        self.height = width_height[1]
-
-        self.encoder = nn.Sequential(OrderedDict(
-            obj_extractor=self.obj_extractor,
-            obj_encoder=self.obj_encoder))
-    def encoder_parameters(self):
-        return self.encoder.parameters()
-    
-    def transition_parameters(self):
-        return self.transition_model.parameters()
-
-    def transition(self, pred_state, action):
-        # Added for compatibility 
-        action = torch.argmax(action, dim = 1)
-        
-        return self.transition_model(pred_state, action) + pred_state
-
-    def energy(self, state, action, next_state, no_trans=False):
-        """Energy function based on normalized squared L2 norm."""
-
-        norm = 0.5 / (self.sigma**2)
-
-        if no_trans:
-            diff = state - next_state
-        else:
-            pred_trans = self.transition_model(state, action)
-            diff = state + pred_trans - next_state
-
-        return norm * diff.pow(2).sum(2).mean(1)
-
-    def transition_loss(self, state, action, next_state):
-        return self.energy(state, action, next_state).mean()
-
-    def encode(self, obs):
-        enc = self.encoder(obs)
-        return enc, 0.0
-
-    def contrastive_loss(self, obs, action, next_obs, reward=None, target=None):
-
-        # Added for compatibility
-        action = torch.argmax(action, dim = 1)
-
-        objs = self.obj_extractor(obs)
-        next_objs = self.obj_extractor(next_obs)
-
-        state = self.obj_encoder(objs)
-        next_state = self.obj_encoder(next_objs)
-
-        # Sample negative state across episodes at random
-        batch_size = state.size(0)
-        perm = np.random.permutation(batch_size)
-        neg_state = state[perm]
-
-        self.pos_loss = self.energy(state, action, next_state)
-        zeros = torch.zeros_like(self.pos_loss)
-        
-        self.pos_loss = self.pos_loss.mean()
-        self.neg_loss = torch.max(
-            zeros, self.hinge - self.energy(
-                state, action, neg_state, no_trans=True)).mean()
-
-        loss = self.pos_loss + self.neg_loss
-
-        return loss
-
-    def forward(self, obs):
-        return self.obj_encoder(self.obj_extractor(obs))
-
 
 class TransitionGNN(torch.nn.Module):
     """GNN-based transition function."""
@@ -656,160 +510,6 @@ class TransitionGNN(torch.nn.Module):
         # [batch_size, num_nodes, hidden_dim]
         return node_attr.view(batch_size, num_nodes, -1)
 
-class ContrastiveSWMFinal(nn.Module):
-    """Main module for a Contrastively-trained Structured World Model (C-SWM).
-    Args:
-        embedding_dim: Dimensionality of abstract state space.
-        input_dims: Shape of input observation.
-        hidden_dim: Number of hidden units in encoder and transition model.
-        action_dim: Dimensionality of action space.
-        num_objects: Number of object slots.
-    """
-    def __init__(self, embedding_dim, input_dims, hidden_dim, action_dim,
-                 num_objects, input_shape=[3,50,50], hinge=1., sigma=0.5, encoder='large',
-                 ignore_action=False, copy_action=False):
-        super(ContrastiveSWMFinal, self).__init__()
-
-        self.hidden_dim = hidden_dim
-        self.embedding_dim = embedding_dim
-        self.action_dim = action_dim
-        self.num_objects = num_objects
-        self.hinge = hinge
-        self.sigma = sigma
-        self.ignore_action = ignore_action
-        self.copy_action = copy_action
-        self.input_shape = input_shape
-        
-        self.pos_loss = 0
-        self.neg_loss = 0
-
-        num_channels = input_dims[0]
-        width_height = input_dims[1:]
-
-        if encoder == 'small':
-            self.obj_extractor = EncoderCNNSmall(
-                input_dim=num_channels,
-                hidden_dim=hidden_dim // 16,
-                num_objects=num_objects)
-            width_height = np.array(width_height)
-            width_height = width_height // 10
-            self.decoder = DecoderCNNSmall(
-                            input_dim=self.embedding_dim,
-                            num_objects=self.num_objects,
-                            hidden_dim=self.hidden_dim//2,
-                            output_size=self.input_shape)
-
-        elif encoder == 'medium':
-            self.obj_extractor = EncoderCNNMedium(
-                input_dim=num_channels,
-                hidden_dim=hidden_dim // 16,
-                num_objects=num_objects)
-            width_height = np.array(width_height)
-            width_height = width_height // 5
-            self.decoder = DecoderCNNMedium(
-                            input_dim=self.embedding_dim,
-                            num_objects=self.num_objects,
-                            hidden_dim=self.hidden_dim//2,
-                            output_size=self.input_shape)
-
-        elif encoder == 'large':
-            self.obj_extractor = EncoderCNNLarge(
-                input_dim=num_channels,
-                hidden_dim=hidden_dim // 16,
-                num_objects=num_objects)
-            self.decoder = DecoderCNNLarge(
-                            input_dim=self.embedding_dim,
-                            num_objects=self.num_objects,
-                            hidden_dim=self.hidden_dim//2,
-                            output_size=self.input_shape)
-
-        self.obj_encoder = EncoderMLP(
-            input_dim=np.prod(width_height),
-            hidden_dim=hidden_dim,
-            output_dim=embedding_dim,
-            num_objects=num_objects)
-
-        self.transition_model = TransitionGNN(
-            input_dim=embedding_dim,
-            hidden_dim=hidden_dim,
-            action_dim=action_dim,
-            num_objects=num_objects,
-            ignore_action=ignore_action,
-            copy_action=copy_action)
-
-        self.width = width_height[0]
-        self.height = width_height[1]
-
-        self.encoder = nn.Sequential(OrderedDict(
-            obj_extractor=self.obj_extractor,
-            obj_encoder=self.obj_encoder))
-    
-    def encoder_parameters(self):
-        return self.encoder.parameters()
-
-    def decoder_parameters(self):
-        return self.decoder.parameters()
-    
-    def transition_parameters(self):
-        return self.transition_model.parameters()
-
-    def transition(self, pred_state, action):
-        # Added for compatibility 
-        action = torch.argmax(action, dim = 1)
-        
-        return self.transition_model(pred_state, action) + pred_state
-
-    def energy(self, state, action, next_state, no_trans=False):
-        """Energy function based on normalized squared L2 norm."""
-
-        norm = 0.5 / (self.sigma**2)
-
-        if no_trans:
-            diff = state - next_state
-        else:
-            pred_trans = self.transition_model(state, action)
-            diff = state + pred_trans - next_state
-
-        return norm * diff.pow(2).sum(2).mean(1)
-
-    def transition_loss(self, state, action, next_state):
-        return self.energy(state, action, next_state).mean()
-
-    def encode(self, obs):
-        enc = self.encoder(obs)
-        return enc, 0.0
-
-    def contrastive_loss(self, obs, action, next_obs, reward=None, target=None):
-
-        # Added for compatibility
-        action = torch.argmax(action, dim = 1)
-
-        objs = self.obj_extractor(obs)
-        next_objs = self.obj_extractor(next_obs)
-
-        state = self.obj_encoder(objs)
-        next_state = self.obj_encoder(next_objs)
-
-        # Sample negative state across episodes at random
-        batch_size = state.size(0)
-        perm = np.random.permutation(batch_size)
-        neg_state = state[perm]
-
-        self.pos_loss = self.energy(state, action, next_state)
-        zeros = torch.zeros_like(self.pos_loss)
-        
-        self.pos_loss = self.pos_loss.mean()
-        self.neg_loss = torch.max(
-            zeros, self.hinge - self.energy(
-                state, action, neg_state, no_trans=True)).mean()
-
-        loss = self.pos_loss + self.neg_loss
-
-        return loss
-
-    def forward(self, obs):
-        return self.obj_encoder(self.obj_extractor(obs))
-
 class MLPTransition(nn.Module):
     def __init__(self, state_dim, num_actions, hidden_dim, output_dim):
         super().__init__()
@@ -875,9 +575,9 @@ class RewardPredictor(nn.Module):
         self.embedding_dim = embedding_dim
 
         self.model = nn.Sequential(
-        	nn.Linear(self.embedding_dim * 2, 512),
-        	nn.ReLU(inplace=True),
-        	nn.Linear(512, 1)
+            nn.Linear(self.embedding_dim * 2, 512),
+            nn.ReLU(inplace=True),
+            nn.Linear(512, 1)
         )
 
     def forward(self, x):

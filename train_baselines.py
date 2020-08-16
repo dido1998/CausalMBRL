@@ -19,6 +19,7 @@ import torchvision
 
 from cswm import utils
 from cswm.models.modules import CausalTransitionModel, ContrastiveSWM, ContrastiveSWMFinal
+from cswm.models.losses import *
 
 from cswm.utils import OneHot
 
@@ -56,7 +57,7 @@ parser.add_argument('--predict-diff', action='store_true',
                     help='Do we predict the difference of current and next state?')
 parser.add_argument('--hidden-dim', type=int, default=512,
                     help='Number of hidden units in transition MLP.')
-parser.add_argument('--embedding-dim', type=int, default=5,
+parser.add_argument('--embedding-dim-per-object', type=int, default=5,
                     help='Dimensionality of embedding.')
 parser.add_argument('--action-dim', type=int, default=5,
                     help='Dimensionality of action space.')
@@ -105,11 +106,13 @@ parser.add_argument('--reload-folder', type=Path,
                     help='Path to reload file.')
 parser.add_argument('--reload', action='store_true',
                     help='reload encoder, decoder')
-parser.add_argument('--cswm', action = 'store_true', help='use c-swm model (Kipf et al)')
-
+parser.add_argument('--gnn', action = 'store_true', help='use GNN model (Kipf et al)')
+parser.add_argument('--contrastive', action = 'store_true', help='use contrastive loss')
 
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
+
+# Set experiment name
 
 now = datetime.datetime.now()
 timestamp = now.isoformat()
@@ -119,12 +122,6 @@ if args.name == 'none':
 else:
     exp_name = args.name
 
-np.random.seed(args.seed)
-torch.manual_seed(args.seed)
-if args.cuda:
-    torch.cuda.manual_seed(args.seed)
-
-exp_counter = 0
 save_folder = args.save_folder / exp_name
 
 if not os.path.exists(save_folder):
@@ -139,6 +136,15 @@ reload_file = args.reload_folder / 'model.pt'
 
 log_file = save_folder / 'log.txt'
 
+# Set seeds
+
+np.random.seed(args.seed)
+torch.manual_seed(args.seed)
+if args.cuda:
+    torch.cuda.manual_seed(args.seed)
+
+# Set logging
+
 handlers = [logging.FileHandler(log_file, 'a')]
 if args.silent:
     handlers.append(logging.StreamHandler(sys.stdout))
@@ -150,6 +156,8 @@ with open(meta_file, "wb") as f:
     pickle.dump({'args': args}, f)
 
 device = torch.device('cuda' if args.cuda else 'cpu')
+
+# Load datasets
 
 dataset = utils.StateTransitionsDataset(
     hdf5_file=args.dataset, action_transform=OneHot(args.num_objects * args.action_dim))
@@ -165,40 +173,28 @@ valid_loader = data.DataLoader(
 obs = next(iter(train_loader))[0]
 input_shape = obs[0].size()
 
-if args.cswm:
-    model = ContrastiveSWMFinal(
-        embedding_dim=args.embedding_dim,
-        hidden_dim=args.hidden_dim,
-        action_dim=args.action_dim,
-        input_dims=input_shape,
-        input_shape=input_shape,
-        num_objects=args.num_objects,
-        sigma=args.sigma,
-        hinge=args.hinge,
-        ignore_action=args.ignore_action,
-        copy_action=args.copy_action,
-        encoder=args.encoder).to(device)
+# Initialize Model
 
-    num_enc = sum(p.numel() for p in model.encoder_parameters())
-    num_tr = sum(p.numel() for p in model.transition_parameters())
-    print(f'Number of parameters in Encoder: {num_enc}')
-    print(f'Number of parameters in Transition: {num_tr}')
-    print(f'Number of parameters: {num_enc + num_tr}')
-else:
-    model = CausalTransitionModel(
-        embedding_dim=args.embedding_dim,
-        hidden_dim=args.hidden_dim,
-        action_dim=args.action_dim,
-        input_dims=input_shape,
-        input_shape=input_shape,
-        num_graphs=args.num_graphs,
-        modular=args.modular,
-        predict_diff=args.predict_diff,
-        learn_edges=args.learn_edges,
-        vae=args.vae,
-        num_objects=args.num_objects,
-        encoder=args.encoder,
-        multiplier=args.multiplier).to(device)
+model = CausalTransitionModel(
+    embedding_dim_per_object=args.embedding_dim_per_object,
+    hidden_dim=args.hidden_dim,
+    action_dim=args.action_dim,
+    input_dims=input_shape,
+    input_shape=input_shape,
+    num_graphs=args.num_graphs,
+    modular=args.modular,
+    predict_diff=args.predict_diff,
+    learn_edges=args.learn_edges,
+    vae=args.vae,
+    num_objects=args.num_objects,
+    encoder=args.encoder,
+    gnn=args.gnn,
+    multiplier=args.multiplier,
+    sigma=args.sigma,
+    hinge=args.hinge,
+    ignore_action=args.ignore_action,
+    copy_action=args.copy_action).to(device)
+
     num_enc = sum(p.numel() for p in model.encoder_parameters())
     num_dec = sum(p.numel() for p in model.decoder_parameters())
     num_tr = sum(p.numel() for p in model.transition_parameters())
@@ -209,7 +205,6 @@ else:
     print(f'Number of parameters: {num_enc+num_dec+num_tr}')
 
 model.apply(utils.weights_init)
-criteria = nn.BCEWithLogitsLoss(reduction='sum')
 
 def evaluate(model_file, valid_loader, train_encoder = True, train_decoder = True, train_transition = False):
     model.eval()
@@ -220,42 +215,26 @@ def evaluate(model_file, valid_loader, train_encoder = True, train_decoder = Tru
             data_batch = [tensor.to(device) for tensor in data_batch]
             obs, action, next_obs, _, _ = data_batch
 
-            if not args.cswm:
-                state, kl_loss = model.encode(obs)
-
-                if train_encoder and train_decoder and not train_transition:
-                    rec_state = model.decoder(state)
-                    loss = (criteria(rec_state, obs) + kl_loss) / obs.size(0)
-
-                elif train_encoder and train_decoder and train_transition:
-                    next_state, kl_next = model.encode(next_obs)
-                    
-                    transition_loss, _, pred_next = model.transition(
-                            state, action, next_state)
-
-                    rec_state = model.decoder(state)
-                    rec_next = model.decoder(pred_next)
-
-                    loss = (criteria(rec_state, obs) + kl_loss + criteria(rec_next, next_obs) 
-                            + kl_next + transition_loss) / obs.size(0)
-                elif train_transition:
-                    next_state, kl_next = model.encode(next_obs)
-                    transition_loss, _, _ = model.transition(state, action, next_state)
-                    loss = transition_loss / obs.size(0)
-            else:
+            if args.contrastive:
                 state, _ = model.encode(obs)
-                if train_encoder or train_transition:
-                    loss = model.contrastive_loss(*data_batch)
-                    if train_decoder:
-                        next_state = model.transition(state, action)
-                        rec_state = model.decoder(state)
-                        rec_next = model.decoder(next_state)
+                next_state, _ = model.encode(next_obs)
+                pred_state = model.transition(state, action)
+                loss = contrastive_loss(state, action, next_state, pred_state,
+                                        hinge=args.hinge, sigma=args.sigma)
+            else:
+                state, mean_var = model.encode(obs)
+                next_state, next_mean_var = model.encode(next_obs)
+                pred_state = model.transition(state, action)
+                recon = model.decoder(state)
+                next_recon = model.decoder(next_state)
 
-                        loss += criteria(rec_state, obs) / obs.size(0)
-                        loss += criteria(rec_next, next_obs) / obs.size(0)
-                else:
-                    rec_state = model.decoder(state)
-                    loss = criteria(rec_state, obs) / obs.size(0)
+                if train_encoder and train_decoder:
+                    loss = image_loss(recon, obs) + image_loss(next_recon, next_obs)
+                    loss += kl_loss(mean_var[0], mean_var[1]) + kl_loss(next_mean_var[0], next_mean_var[1])
+                elif train_transition:
+                    loss = transition_loss(pred_state, next_state)
+
+                loss /= obs.size(0)
 
             valid_loss += loss.item()
         avg_loss = valid_loss / len(valid_loader)
@@ -266,28 +245,18 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
           train_transition=False):
 
     parameters = []
-    if not args.cswm:    
-        if train_transition:
-            parameters = chain(parameters, model.transition_parameters())
-        if train_encoder:
-            parameters = chain(parameters, model.encoder_parameters())
-        if train_decoder:
-            parameters = chain(parameters, model.decoder_parameters())
+    if train_decoder:
+        parameters = chain(parameters, model.decoder_parameters())
+    if train_encoder:
+        parameters = chain(parameters, model.encoder_parameters())
+    if train_transition:
+        parameters = chain(parameters, model.transition_parameters())
 
-        optimizer = torch.optim.Adam(parameters, lr = lr)
-    else:
-        parameters = []
-        if train_decoder:
-            parameters = chain(parameters, model.decoder_parameters())
-        if train_encoder:
-            parameters = chain(parameters, model.encoder_parameters())
-        if train_transition:
-            parameters = chain(parameters, model.transition_parameters())
-
-        optimizer = torch.optim.Adam(parameters, lr = lr)
+    optimizer = torch.optim.Adam(parameters, lr = lr)
 
     print('Starting model training...')
     best_loss = 1e9
+
     for epoch in range(1, max_epochs + 1):
         train_loss = 0
 
@@ -300,43 +269,27 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
 
             optimizer.zero_grad()
 
-            if not args.cswm:
-                state, kl_loss = model.encode(obs)
-
-                if train_encoder and train_decoder and not train_transition:
-                    rec_state = model.decoder(state)
-                    loss = (criteria(rec_state, obs) + kl_loss) / obs.size(0)
-
-                elif train_encoder and train_decoder and train_transition:
-                    next_state, kl_next = model.encode(next_obs)
-
-                    transition_loss, _, pred_next = model.transition(
-                            state, action, next_state)
-
-                    rec_state = model.decoder(state)
-                    rec_next = model.decoder(pred_next)
-   
-                    loss = (criteria(rec_state, obs) + kl_loss + criteria(rec_next, next_obs) 
-                            + kl_next + transition_loss) / obs.size(0)
-                elif train_transition:
-                    next_state, kl_next = model.encode(next_obs)
-                    transition_loss, _, _ = model.transition(state, action, next_state)
-                    loss = transition_loss / obs.size(0)
-            else:
+            if args.contrastive:
                 state, _ = model.encode(obs)
-                if train_encoder or train_transition:
-                    loss = model.contrastive_loss(*data_batch)
-                    if train_decoder:
-                        next_state = model.transition(state, action)
-                        rec_state = model.decoder(state)
-                        rec_next = model.decoder(next_state)
+                next_state, _ = model.encode(next_obs)
+                pred_state = model.transition(state, action)
+                loss = contrastive_loss(state, action, next_state, pred_state,
+                                        hinge=args.hinge, sigma=args.sigma)
+            else:
+                state, mean_var = model.encode(obs)
+                next_state, next_mean_var = model.encode(next_obs)
+                pred_state = model.transition(state, action)
+                recon = model.decoder(state)
+                next_recon = model.decoder(next_state)
 
-                        loss += criteria(rec_state, obs) / obs.size(0)
-                        loss += criteria(rec_next, next_obs) / obs.size(0)
-                else:
-                    rec_state = model.decoder(state)
-                    loss = criteria(rec_state, obs) / obs.size(0)
- 
+                if train_encoder and train_decoder:
+                    loss = image_loss(recon, obs) + image_loss(next_recon, next_obs)
+                    loss += kl_loss(mean_var[0], mean_var[1]) + kl_loss(next_mean_var[0], next_mean_var[1])
+                elif train_transition:
+                    loss = transition_loss(pred_state, next_state)
+
+                loss /= obs.size(0)
+
             loss.backward()
             train_loss += loss.item()
 
@@ -360,14 +313,11 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
             best_loss = avg_loss
             torch.save(model.state_dict(), model_file)
 
-if not args.cswm:
+if args.contrastive:
+    train(args.epochs, model_file, lr=args.lr, train_encoder=True, train_transition=True, train_decoder=False)
+else:
     train(args.pretrain_epochs, model_file, lr=args.lr, train_encoder=True, train_transition=False, train_decoder=True)
     train(args.epochs, model_file, lr=args.transit_lr, train_encoder=False, train_transition=True, train_decoder=False)
-    train(args.epochs, finetune_file, lr=args.lr, train_encoder=True, train_transition=True, train_decoder=True)
-else:
-    train(args.epochs, model_file, lr = args.lr, train_encoder=True, train_transition=True, train_decoder=False)
-    train(args.epochs, model_file, lr = args.lr, train_encoder=False, train_transition=False, train_decoder=True)
-    train(args.epochs, finetune_file, lr = args.lr, train_encoder=True, train_transition=True, train_decoder=True)
 
 if args.eval_dataset is not None:
     utils.eval_steps(
