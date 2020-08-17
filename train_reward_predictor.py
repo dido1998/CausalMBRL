@@ -152,7 +152,7 @@ def evaluate(valid_loader):
 
     for batch_idx, data_batch in enumerate(valid_loader):
         data_batch = [tensor.to(device).float() for tensor in data_batch]
-        obs, _, _, reward, target = data_batch
+        _, _, obs, reward, target = data_batch
 
         state, _ = model.encode(obs)
         state = state.view(state.shape[0], args.num_objects * args.embedding_dim)
@@ -162,7 +162,7 @@ def evaluate(valid_loader):
         state_emb = torch.cat([state, reward_state], dim=1)
         reward_pred = Reward_Model(state_emb).view(reward.shape)
 
-        loss = F.l1_loss(reward_pred, reward * 16)
+        loss = F.l1_loss(reward_pred, reward)
 
         valid_loss += loss.item()
     
@@ -185,7 +185,7 @@ def train(max_epochs, lr):
         for batch_idx, data_batch in enumerate(iterator):
             Reward_Model.train()
             data_batch = [tensor.to(device).float() for tensor in data_batch]
-            obs, _, _, reward, target = data_batch
+            _, _, obs, reward, target = data_batch
 
             optimizer.zero_grad()
 
@@ -197,7 +197,7 @@ def train(max_epochs, lr):
             state_emb = torch.cat([state, reward_state], dim=1)
             reward_pred = Reward_Model(state_emb).view(reward.shape)
 
-            loss = F.l1_loss(reward_pred, reward * 16)
+            loss = F.l1_loss(reward_pred, reward)
 
             loss.backward()
             train_loss += loss.item()
