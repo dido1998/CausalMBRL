@@ -1,5 +1,4 @@
 """Simple random agent.
-
 Running this script directly executes the random agent in environment and stores
 experience in a replay buffer.
 """
@@ -23,7 +22,7 @@ from gym import logger
 
 import numpy as np
 from PIL import Image
-
+import torch
 
 class RandomAgent(object):
     """The world's simplest agent!"""
@@ -56,6 +55,11 @@ def parse_args():
                         help='Random seed.')
     parser.add_argument('--episode-length', type=int, default=100)
     parser.add_argument('--silent', action='store_true')
+    parser.add_argument('--save_graph', action = 'store_true')
+    parser.add_argument('--save_graph_location', type = str)
+    parser.add_argument('--load_graph', action = 'store_true')
+    parser.add_argument('--load_graph_location', type = str)
+    parser.add_argument('--graph', type = str, default = None)
     return parser.parse_args()
 
 
@@ -171,7 +175,16 @@ def main():
     logger.set_level(logger.INFO)
 
     with gym.make(args.env_id) as env:
+        if args.load_graph:
+            graph = torch.load(args.load_graph_location)
+            env.unwrapped.load_save_information(graph)
+        elif args.graph != 'None':
+            env.unwrapped.set_graph(args.graph)
+        #print(env.unwrapped.adjacency_matrix)
         replay_buffer = generate(env, args)
+        if args.save_graph:
+            graph = env.unwrapped.get_save_information()
+            torch.save(graph, args.save_graph_location)
 
     # Save replay buffer to disk.
     utils.save_list_dict_h5py(replay_buffer, args.fname)
