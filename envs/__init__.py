@@ -66,7 +66,7 @@ def register_shapes_rl(name='WShapesRL-{}-{}-{}-{}-{}', typ='Observed',
     )
 
 for n_obj in [3,4,5]:
-    for mode in ["Train", "Test-v1", "Test-v2", "Test-v3", "ZeroShot", "ZeroShotShape"]:
+    for mode in ["Train", "Test-v1", "Test-v2", "Test-v3", "0shot"]:
         for cmap in ["Blues", "Reds", "Greens"]:
             register_shapes('WShapes-{}-{}-{}-{}-{}', 'Observed',
                 n_obj, mode, cmap)
@@ -74,7 +74,7 @@ for n_obj in [3,4,5]:
                 n_obj, mode, cmap)
 
 for n_obj in [3,4,5]:
-    for mode in ["Train", "FewShot-v1", "FewShot-v2", "FewShot-v3", "ZeroShotShape"]:
+    for mode in ["Train", "FewShot-v1", "FewShot-v2", "FewShot-v3"]:
         for cmap in ["Sets", "Pastels"]:
             register_shapes('WShapes-{}-{}-{}-{}-{}', 'Unobserved',
                 n_obj, mode, cmap)
@@ -141,7 +141,7 @@ for n_obj in [3, 4, 5, 6, 7, 8]:
 for n_obj in [3, 4, 5, 6, 7, 8]:
     for n_colors in [3, 4, 5, 6, 7, 8]:
         for pal_id in [0, 1]:
-            for steps in [50, 200]:
+            for steps in [10, 20, 30, 40, 50, 200]:
                 register_chemistry_rl_envs('ColorChangingRL-{}-{}-{}-{}-{}', n_obj, n_colors, pal_id, steps)
 
 

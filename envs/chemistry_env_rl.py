@@ -16,6 +16,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from PIL import Image
 
 import skimage
+import skimage.draw
 
 from cswm import utils
 import random
@@ -184,8 +185,8 @@ class ColorChangingRL(gym.Env):
     def __init__(self, width=5, height=5, render_type='cubes',
                  *, num_objects=5,
                  num_colors=None,  pal_id = 0, max_steps = 50, seed=None):
-        np.random.seed(0)
-        torch.manual_seed(0)
+        #np.random.seed(0)
+        #torch.manual_seed(0)
         self.width = width
         self.height = height
         self.render_type = render_type
@@ -196,8 +197,8 @@ class ColorChangingRL(gym.Env):
             num_colors = num_objects
         self.num_colors = num_colors
         self.num_actions = self.num_objects * self.num_colors
-        self.num_target_interventions = 10
-        self.max_steps = 30
+        self.num_target_interventions = max_steps
+        self.max_steps = max_steps
         
         self.mlps = []
         self.mask = None
@@ -245,7 +246,7 @@ class ColorChangingRL(gym.Env):
         self.action_space = spaces.Discrete(self.num_actions)
         self.observation_space = spaces.Box(
             low=0, high=1,
-            shape=(6, 50, 50),
+            shape=(3, 50, 50),
             dtype=np.float32
         )
 
@@ -256,6 +257,28 @@ class ColorChangingRL(gym.Env):
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
+
+    def load_save_information(self, save):
+        self.adjacency_matrix = save['graph']
+        for i in range(self.num_objects):
+            self.mlps[i].load_state_dict(save['mlp' + str(i)])
+        self.generate_masks()
+        self.reset()
+
+    def set_graph(self, g):
+        num_nodes = self.num_objects
+        num_edges = np.random.randint(num_nodes, (((num_nodes) * (num_nodes - 1)) // 2) + 1)
+        self.adjacency_matrix = random_dag(num_nodes, num_edges, g = g)
+        self.adjacency_matrix = torch.from_numpy(self.adjacency_matrix).float()
+        self.generate_masks()
+        self.reset()
+
+    def get_save_information(self):
+        save = {}
+        save['graph'] = self.adjacency_matrix
+        for i in range(self.num_objects):
+            save['mlp' + str(i)] = self.mlps[i].state_dict()
+        return save
 
     def render_grid(self):
         im = np.zeros((3, self.width, self.height))
@@ -462,8 +485,10 @@ class ColorChangingRL(gym.Env):
         self.generate_target()
         #self.check_softmax()
         #self.check_softmax_target()
-
-        return self.render()
+        observations = self.render()
+        observation_in, observations_target = observations[:3, :, :], observations[3:, :, :]
+        state_in, state_target = self.get_state()
+        return (state_in, observation_in), (observations_target, state_target)
 
     def valid_pos(self, pos, obj_id):
         """Check if position is valid."""
@@ -545,15 +570,18 @@ class ColorChangingRL(gym.Env):
         for c1, c2 in zip(self.object_to_color, self.object_to_color_target):
             if torch.argmax(c1).item() == torch.argmax(c2).item():
                 matches+=1
-        reward = matches / self.num_objects
+        reward = 0
         #reward = 0
         #if matches == self.num_objects:
         #    reward = 1
 
         
         state_obs = self.render()
+        state_obs = state_obs[:3, :, :]
+        state = self.get_state()[0]
+        state_obs = (state, state_obs)
         if self.cur_step >= self.max_steps:
-            #reward = matches / self.num_objects
             done = True
+        reward = matches / self.num_objects
         self.cur_step += 1
         return state_obs, reward, done, None
