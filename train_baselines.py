@@ -155,7 +155,7 @@ valid_dataset = utils.StateTransitionsDataset(
 train_loader = data.DataLoader(
     dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 valid_loader = data.DataLoader(
-    valid_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    valid_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
 
 # Get data sample
 obs = next(iter(train_loader))[0]
@@ -176,8 +176,6 @@ model = CausalTransitionModel(
     encoder=args.encoder,
     gnn=args.gnn,
     multiplier=args.multiplier,
-    sigma=args.sigma,
-    hinge=args.hinge,
     ignore_action=args.ignore_action,
     copy_action=args.copy_action).to(device)
 
@@ -203,16 +201,14 @@ def evaluate(model_file, valid_loader, train_encoder = True, train_decoder = Tru
 
             loss = 0.0
 
+            state, mean_var = model.encode(obs)
+            next_state, next_mean_var = model.encode(next_obs)
+            pred_state = model.transition(state, action)
+
             if args.contrastive:
-                state, _ = model.encode(obs)
-                next_state, _ = model.encode(next_obs)
-                pred_state = model.transition(state, action)
                 loss = contrastive_loss(state, action, next_state, pred_state,
                                         hinge=args.hinge, sigma=args.sigma)
             else:
-                state, mean_var = model.encode(obs)
-                next_state, next_mean_var = model.encode(next_obs)
-                pred_state = model.transition(state, action)
                 recon = model.decoder(state)
                 next_recon = model.decoder(next_state)
 
@@ -260,16 +256,14 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
 
             loss = 0.0
 
+            state, mean_var = model.encode(obs)
+            next_state, next_mean_var = model.encode(next_obs)
+            pred_state = model.transition(state, action)
+
             if args.contrastive:
-                state, _ = model.encode(obs)
-                next_state, _ = model.encode(next_obs)
-                pred_state = model.transition(state, action)
                 loss = contrastive_loss(state, action, next_state, pred_state,
                                         hinge=args.hinge, sigma=args.sigma)
             else:
-                state, mean_var = model.encode(obs)
-                next_state, next_mean_var = model.encode(next_obs)
-                pred_state = model.transition(state, action)
                 recon = model.decoder(state)
                 next_recon = model.decoder(next_state)
 

@@ -1,22 +1,22 @@
 import torch.nn as nn
 import torch
-from .attention import MultiHeadAttention, Seq2SeqAttention
-from .layer_conn_attention import LayerConnAttention
-from .BlockLSTM import BlockLSTM
+from utilities.attention_rim import MultiHeadAttention
+from utilities.layer_conn_attention import LayerConnAttention
+from utilities.BlockLSTM import BlockLSTM
 import random
 import time
-from .GroupLinearLayer import GroupLinearLayer
-from .sparse_grad_attn import blocked_grad
-import numpy as np
+from utilities.GroupLinearLayer import GroupLinearLayer
+from utilities.sparse_grad_attn import blocked_grad
 
-from .blocks_core import BlocksCore
+from .blocks_core_rim import BlocksCore
 
 class RNNModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
 
     def __init__(self, rnn_type, ntoken, ninp, nhid, nlayers, dropout=0.5, tie_weights=False, use_cudnn_version=True,
                  use_adaptive_softmax=False, cutoffs=None, discrete_input=False, num_blocks=[6], topk=[4], do_gru=False,
-                 use_inactive=False, blocked_grad=False, layer_dilation = -1, block_dilation = -1, num_modules_read_input=2, use_linear = False, is_decoder = False, use_attention = False):
+                 use_inactive=False, blocked_grad=False, layer_dilation = -1, block_dilation = -1, num_modules_read_input=2, 
+                 num_rules = 0, rule_time_steps = 0):
 
         super(RNNModel, self).__init__()
 
@@ -62,30 +62,24 @@ class RNNModel(nn.Module):
         self.dropout_lst = []
 
         print("Dropout rate", dropout)
-        self.use_attention = use_attention
-
-        if is_decoder and use_attention:
-            print(nhid)
-            self.attention = Seq2SeqAttention(nhid[0], nhid[0])
 
         for i in range(nlayers):
             if i==0:
-                if is_decoder and use_attention:
-                    self.bc_lst.append(BlocksCore(nhid[i] + ninp,nhid[i], num_blocks_in[i], num_blocks[i], topk[i], True, do_gru=do_gru, num_modules_read_input=num_modules_read_input))
+                if False:
+                    self.bc_lst.append(BlocksCore(ninp + nhid[i],nhid[i], num_blocks_in[i], num_blocks[i], topk[i], True, do_gru=do_gru, num_modules_read_input=num_modules_read_input, num_rules = num_rules, rule_time_steps = rule_time_steps))
                 else:
-                    self.bc_lst.append(BlocksCore(ninp,nhid[i], num_blocks_in[i], num_blocks[i], topk[i], True, do_gru=do_gru, num_modules_read_input=num_modules_read_input))
+                    self.bc_lst.append(BlocksCore(ninp,nhid[i], num_blocks_in[i], num_blocks[i], topk[i], True, do_gru=do_gru, num_modules_read_input=num_modules_read_input, num_rules = num_rules, rule_time_steps = rule_time_steps))
             else:
-                self.bc_lst.append(BlocksCore(nhid[i-1],nhid[i], num_blocks_in[i], num_blocks[i], topk[i], True, do_gru=do_gru, num_modules_read_input=num_modules_read_input))
+                self.bc_lst.append(BlocksCore(nhid[i-1],nhid[i], num_blocks_in[i], num_blocks[i], topk[i], True, do_gru=do_gru, num_modules_read_input=num_modules_read_input, num_rules = num_rules, rule_time_steps = rule_time_steps))
         for i in range(nlayers - 1):
             self.dropout_lst.append(nn.Dropout(dropout))
 
         self.bc_lst = nn.ModuleList(self.bc_lst)
         self.dropout_lst = nn.ModuleList(self.dropout_lst)
 
-        self.use_linear = use_linear
         self.use_adaptive_softmax = use_adaptive_softmax
-        if use_linear:
-            self.decoder = nn.Linear(nhid[-1] + ninp, ntoken)
+        if False:
+            self.decoder = nn.Linear(nhid[-1], ntoken)
             if tie_weights:
             	if nhid[-1] != ninp:
             		raise ValueError('When using the tied flag, nhid must be equal to emsize')
@@ -93,78 +87,30 @@ class RNNModel(nn.Module):
             		self.decoder.weight = self.encoder.weight
 
         self.init_weights()
-        self.is_decoder = is_decoder
+        
+
+        self.transform_src = nn.Linear(nhid[0], nhid[0] // num_blocks[0])
 
         self.rnn_type = rnn_type
         self.nhid = nhid
-        self.ninp = ninp
         self.nlayers = nlayers
+        print('-------Done Initializing Module----------')
 
     def init_weights(self):
         initrange = 0.1
         self.encoder.weight.data.uniform_(-initrange, initrange)
-        if not self.use_adaptive_softmax and self.use_linear:
+        if not self.use_adaptive_softmax and False:
             self.decoder.bias.data.zero_()
             self.decoder.weight.data.uniform_(-initrange, initrange)
 
     def forward(self, input, hidden, calc_mask=False):
         extra_loss = 0.0
 
-        emb = input#self.drop(self.encoder(input))
-        """weighted = None
-        encoder_inputs_ = None
+        emb = self.drop(self.encoder(input))
+        weighted = None
         attn_vec = None
-        if self.is_decoder and self.use_attention:
-            a = self.attention(hidden[0][0], encoder_outputs)
-                
-            #a = [batch size, src len]
 
-            #max_indices = torch.argmax(a, dim = 1).detach()
-            #mask = torch.zeros(a.size(0), a.size(1), 1,).to(a.device).detach()
-            #x_ind = [i for i in range(a.size(0))]
-
-            #mask[x_ind, max_indices] = 1
-            #mask = mask.transpose(0, 1)
-            #encoder_inputs = encoder_inputs * mask
-            #encoder_inputs = torch.sum(encoder_inputs, dim = 0)
-            #encoder_inputs = encoder_inputs.unsqueeze(1)
-            
-            #mask_2 = torch.zeros_like(a).detach()
-
-            #topk = torch.topk(a, dim = 1, k = 3)
-
-            #x_ind = np.repeat(np.array(x_ind), 3)
-
-            #mask_2[x_ind, topk.indices.view(-1)] = 1
-            #a = a * mask_2
-
-            a = a.unsqueeze(1)
-            
-            #a = [batch size, 1, src len]
-            
-            encoder_outputs = encoder_outputs.permute(1, 0, 2)
-            
-            #encoder_outputs = [batch size, src len, enc hid dim * 2]
-            encoder_inputs = encoder_inputs.permute(1, 0, 2)
-            encoder_inputs = torch.bmm(a, encoder_inputs)
-            encoder_inputs = encoder_inputs.permute(1, 0, 2)
-            encoder_inputs_ = encoder_inputs.permute(1, 0, 2)
-
-            
-            weighted = torch.bmm(a, encoder_outputs)
-            
-            #weighted = [batch size, 1, enc hid dim * 2]
-            
-            weighted = weighted.permute(1, 0, 2)
-            
-            #weighted = [1, batch size, enc hid dim * 2]
-        
-            emb = torch.cat((emb, weighted), dim = 2)
-            #emb = weighted
-
-            attn_vec = weighted.view(hidden[0][0].size())
-
-            #encoder_final_state = weighted.squeeze(0)"""
+        #encoder_final_state = weighted.squeeze(0)
         if True:
             # for loop implementation with RNNCell
             layer_input = emb
@@ -222,20 +168,15 @@ class RNNModel(nn.Module):
                 new_hidden[idx_layer] = tuple((hx,cx))
 
             hidden = new_hidden
-        
 
         output = self.drop(output)
-        if self.use_linear:
-            output = torch.cat((output, encoder_inputs), dim = 2)
-            dec = output.view(output.size(0) * output.size(1), self.nhid[-1] + self.ninp)
-        else:
-            dec = output.view(output.size(0) * output.size(1), self.nhid[-1])
-        if self.use_linear:
+        dec = output.view(output.size(0) * output.size(1), self.nhid[-1])
+        if False:
             dec = self.decoder(dec)
         if calc_mask:
-            return dec.view(output.size(0), output.size(1), dec.size(1)), hidden, emb, extra_loss, masks, sample_masks, None
+            return dec.view(output.size(0), output.size(1), dec.size(1)), hidden, extra_loss, masks, sample_masks
         else:
-            return dec.view(output.size(0), output.size(1), dec.size(1)), hidden, emb, extra_loss, None, None, None
+            return dec.view(output.size(0), output.size(1), dec.size(1)), hidden, extra_loss, None, None
 
 
     def init_hidden(self, bsz):

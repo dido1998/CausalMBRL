@@ -1,0 +1,91 @@
+# Modular Dynamics
+Implementation of modular models such as SCOFF and RIM in PyTorch. 
+
+This implementation mirrors the implementations of `nn.LSTM` and `nn.GRU` in PyTorch.
+
+## Installation
+```
+git clone https://github.com/dido1998/modular_dynamics.git
+cd modular_dynamics
+pip install -e .
+```
+
+## Documentation
+### modularity.RIM
+- Wrapper for RIMs.
+- Mirrors nn.LSTM or nn.GRU
+- supports bidirection and multiple layers
+- Option to specify num_rules and rule_time_steps.
+```
+Parameters:
+	device: 'cuda' or 'cpu'
+	input_size
+	hidden_size
+	num_units: Number of RIMs
+	k: topk
+	rnn_cell: 'LSTM' or 'GRU' (default = LSTM)
+	n_layers: num layers (default = 1)
+	bidirectional: True or False (default = False)
+	num_rules: number of rules (default = 0)
+	rule_time_steps: Number of times to apply rules per time step (default = 0)
+
+Inputs:
+	x (seq_len, batch_size, input_size
+	hidden tuple[(num_layers * num_directions, batch_size, hidden_size)] (Optional)
+
+Outputs: 
+	output (batch_size, seqlen, hidden_size *  num_directions)
+	hidden tuple[(num_layers * num_directions, batch_size, hidden_size)]
+
+```
+
+#### Example:
+```
+from modularity import RIM
+rim = RIM('cuda', 20, 32, 4, 4, rnn_cell = 'LSTM', n_layers = 2, bidirectional = True, num_rules = 5, rule_time_steps = 3)
+x = torch.rand(10, 2, 20).cuda()
+out = rim(x)
+print(out[0].size()) # (10, 2, 64)
+print(out[1][0].size()) # (4, 2, 32)
+print(out[1][1].size()) # (4, 2, 32)
+```
+
+### modularity.SCOFF
+- Wrapper for RIMs.
+- Mirrors nn.LSTM or nn.GRU
+- supports bidirection and multiple layers
+- Option to specify num_rules and rule_time_steps.
+```
+Parameters:
+	device: 'cuda' or 'cpu'
+	input_size
+	hidden_size
+	num_units: Number of RIMs
+	k: topk
+	num_templates: Number of templates (default = 2)
+	rnn_cell: 'LSTM' or 'GRU' (default = LSTM)
+	n_layers: num layers (default = 1)
+	bidirectional: True or False (default = False)
+	num_rules: number of rules (default = 0)
+	rule_time_steps: Number of times to apply rules per time step (default = 0)
+
+Inputs:
+	x (seq_len, batch_size, input_size
+	hidden tuple[(num_layers * num_directions, batch_size, hidden_size)] (Optional)
+
+Outputs: 
+	output (batch_size, seqlen, hidden_size *  num_directions)
+	hidden tuple[(num_layers * num_directions, batch_size, hidden_size)]
+```
+
+#### Example:
+```
+from modularity import SCOFF
+scoff = SCOFF('cuda', 20, 32, 4, 4,num_templates = 2, rnn_cell = 'LSTM', n_layers = 2, bidirectional = True, num_rules = 5, rule_time_steps = 3, perm_inv = True)
+x = torch.rand(10, 2, 20).cuda()
+out = scoff(x)
+print(out[0].size()) # (10, 2, 64)
+print(out[1][0].size()) # (4, 2, 32)
+print(out[1][1].size()) # (4, 2, 32)
+```
+
