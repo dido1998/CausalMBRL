@@ -117,15 +117,15 @@ def register_chemistry_envs_moving(name = 'ColorChangingMoving-{}-{}-{}', num_ob
     )
 
 def register_chemistry_rl_envs(name = 'ColorChangingRL-{}-{}-{}-{}-{}', num_objects = 5,
-                            num_colors = 5, pal_id = 0, max_steps = 50, **kwargs):
+                            num_colors = 5, movement = 'Dynamic', max_steps = 50, **kwargs):
     register(
-        name.format(num_objects, num_colors, pal_id, max_steps, 'v0'),
+        name.format(num_objects, num_colors, movement, max_steps, 'v0'),
         entry_point = 'envs.chemistry_env_rl:ColorChangingRL',
         kwargs=dict(
             render_type='shapes',
             num_objects=num_objects,
             num_colors=num_colors,
-            pal_id=pal_id,
+            movement=movement,
             max_steps=max_steps,
             **kwargs),
     )
@@ -140,9 +140,9 @@ for n_obj in [3, 4, 5, 6, 7, 8]:
 
 for n_obj in [3, 4, 5, 6, 7, 8]:
     for n_colors in [3, 4, 5, 6, 7, 8]:
-        for pal_id in [0, 1]:
+        for movement in ['Dynamic', 'Static']:
             for steps in [10, 20, 30, 40, 50, 200]:
-                register_chemistry_rl_envs('ColorChangingRL-{}-{}-{}-{}-{}', n_obj, n_colors, pal_id, steps)
+                register_chemistry_rl_envs('ColorChangingRL-{}-{}-{}-{}-{}', n_obj, n_colors, movement, steps)
 
 
 

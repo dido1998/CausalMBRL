@@ -176,7 +176,7 @@ class ColorChangingRL(gym.Env):
 
     def __init__(self, width=5, height=5, render_type='cubes',
                  *, num_objects=5,
-                 num_colors=None,  pal_id = 0, max_steps = 50, seed=None):
+                 num_colors=None,  movement = 'Dynamic', max_steps = 50, seed=None):
         #np.random.seed(0)
         #torch.manual_seed(0)
         self.width = width
@@ -184,6 +184,7 @@ class ColorChangingRL(gym.Env):
         self.render_type = render_type
 
         self.num_objects = num_objects
+        self.movement = movement
         
         if num_colors is None:
             num_colors = num_objects
@@ -231,6 +232,20 @@ class ColorChangingRL(gym.Env):
         # If True, then check for collisions and don't allow two
         #   objects to occupy the same position.
         self.collisions = True
+
+        self.objects = OrderedDict()
+        # Randomize object position.
+        while len(self.objects) < self.num_objects:
+            idx = len(self.objects)
+            # Re-sample to ensure objects don't fall on same spot.
+            while not (idx in self.objects and
+                       self.valid_pos(self.objects[idx].pos, idx)):
+                self.objects[idx] = Object(
+                    pos=Coord(
+                        x=np.random.choice(np.arange(self.width)),
+                        y=np.random.choice(np.arange(self.height)),
+                    ),
+                    color=torch.argmax(self.object_to_color[idx]))
 
            
 
@@ -458,20 +473,22 @@ class ColorChangingRL(gym.Env):
 
          # Sample color for other nodes using MLPs
         self.sample_variables(0, do_everything = True)
-
-        self.objects = OrderedDict()
-        # Randomize object position.
-        while len(self.objects) < self.num_objects:
-            idx = len(self.objects)
-            # Re-sample to ensure objects don't fall on same spot.
-            while not (idx in self.objects and
-                       self.valid_pos(self.objects[idx].pos, idx)):
-                self.objects[idx] = Object(
-                    pos=Coord(
-                        x=np.random.choice(np.arange(self.width)),
-                        y=np.random.choice(np.arange(self.height)),
-                    ),
-                    color=torch.argmax(self.object_to_color[idx]))
+        if self.movement == 'Dynamic':
+            self.objects = OrderedDict()
+            # Randomize object position.
+            while len(self.objects) < self.num_objects:
+                idx = len(self.objects)
+                # Re-sample to ensure objects don't fall on same spot.
+                while not (idx in self.objects and
+                           self.valid_pos(self.objects[idx].pos, idx)):
+                    self.objects[idx] = Object(
+                        pos=Coord(
+                            x=np.random.choice(np.arange(self.width)),
+                            y=np.random.choice(np.arange(self.height)),
+                        ),
+                        color=torch.argmax(self.object_to_color[idx]))
+        for idx, obj in self.objects.items():
+            obj.color = torch.argmax(self.object_to_color[idx])
         self.sample_variables_target(0, do_everything = True)
 
         self.generate_target(num_steps = 10)
