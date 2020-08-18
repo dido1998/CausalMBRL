@@ -14,9 +14,6 @@ from cswm import utils
 from cswm.utils import OneHot
 from torch.utils import data
 
-num_steps = 5
-num_eval = 100
-
 parser = argparse.ArgumentParser()
 parser.add_argument('--save-folder', type=Path,
                     default='checkpoints',
@@ -26,9 +23,13 @@ parser.add_argument('--finetune', action='store_true', default=False,
 parser.add_argument('--random', action='store_true', default=False,
                     help='Whether to use finetuned model')
 parser.add_argument('--env-id', type = str)
+parser.add_argument('--num-eval', type=int, default=1000)
+parser.add_argument('--num-steps', type=int, default=1)
 
 args_eval = parser.parse_args()
 
+num_steps = args_eval.num_steps
+num_eval = args_eval.num_eval
 
 def get_success(rewards):
     if 'ColorChanging' in args_eval.env_id:
@@ -186,7 +187,16 @@ def planning_random(env, episode_count):
     print("Standard Deviation: ", np.std(rewards))
     print("Success Rate: ", np.mean(success))
 
+with gym.make(args_eval.env_id) as env:
+    print("Random Planning: ")
+    planning_random(env, num_eval)
+    print()
 
+    print("Best Planning: ")
+    planning_best(env, num_eval)
+    print()
+
+exit()
 
 if 'ColorChanging' in args_eval.env_id:
     graph_location = 'data/ColorChangingRL'
@@ -204,7 +214,6 @@ reward_model_file = args_eval.save_folder / 'reward_model.pt'
 
 with open(meta_file, 'rb') as f:
     args = pickle.load(f)['args']
-
 
 if 'ColorChanging' in args_eval.env_id:
     graph_location = 'data/ColorChangingRL_'+str(args.num_objects)+'-'+str(args.action_dim)+'-'+args_eval.env_id.split('-')[-2]+'-train-graph-'+str(args.dataset).split('.')[0][-1]
@@ -227,20 +236,7 @@ print("Encoder: ", args.encoder)
 print("Num Objects: ", args.num_objects)
 print("Dataset: ", args.dataset)
 
-if False and args.cswm:
-    model = ContrastiveSWMFinal(
-        embedding_dim=args.embedding_dim,
-        hidden_dim=args.hidden_dim,
-        action_dim=args.action_dim,
-        input_dims=input_shape,
-        num_objects=args.num_objects,
-        sigma=args.sigma,
-        hinge=args.hinge,
-        ignore_action=args.ignore_action,
-        copy_action=args.copy_action,
-        encoder=args.encoder).cuda()
-else:
-    model = CausalTransitionModel(
+model = CausalTransitionModel(
         embedding_dim_per_object=args.embedding_dim_per_object,
         hidden_dim=args.hidden_dim,
         action_dim=args.action_dim,
@@ -256,9 +252,9 @@ else:
         ignore_action=args.ignore_action,
         copy_action=args.copy_action).cuda()
 
-    num_enc = sum(p.numel() for p in model.encoder_parameters())
-    num_dec = sum(p.numel() for p in model.decoder_parameters())
-    num_tr = sum(p.numel() for p in model.transition_parameters())
+num_enc = sum(p.numel() for p in model.encoder_parameters())
+num_dec = sum(p.numel() for p in model.decoder_parameters())
+num_tr = sum(p.numel() for p in model.transition_parameters())
 
 Reward_Model = RewardPredictor(args.embedding_dim_per_object * args.num_objects).cuda()
 
