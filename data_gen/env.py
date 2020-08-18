@@ -175,14 +175,14 @@ def main():
     logger.set_level(logger.INFO)
 
     with gym.make(args.env_id) as env:
-        if args.load_graph:
-            graph = torch.load(args.load_graph_location)
-            env.unwrapped.load_save_information(graph)
-        elif args.graph != 'None':
-            env.unwrapped.set_graph(args.graph)
-        #print(env.unwrapped.adjacency_matrix)
+        if 'ColorChanging' in args.env_id:
+            if args.load_graph:
+                graph = torch.load(args.load_graph_location)
+                env.unwrapped.load_save_information(graph)
+            elif args.graph != 'None':
+                env.unwrapped.set_graph(args.graph)
         replay_buffer = generate(env, args)
-        if args.save_graph:
+        if 'ColorChanging' in args.env_id and args.save_graph:
             graph = env.unwrapped.get_save_information()
             torch.save(graph, args.save_graph_location)
 
