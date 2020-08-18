@@ -10,7 +10,7 @@ import tqdm
 import logging
 
 from cswm import utils
-from cswm.models.modules import RewardPredictor, CausalTransitionModel, ContrastiveSWM
+from cswm.models.modules import RewardPredictor, CausalTransitionModel#, ContrastiveSWM
 from cswm.utils import OneHot
 
 import sys
@@ -61,7 +61,7 @@ if args.silent:
     handlers.append(logging.StreamHandler(sys.stdout))
 logging.basicConfig(level=logging.INFO, format='%(message)s', handlers=handlers)
 logger = logging.getLogger()
-print = logger.info
+#print = logger.info
 
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
@@ -89,7 +89,7 @@ input_shape = obs[0].size()
 
 print(f"VAE: {args.vae}")
 print(f"Modular: {args.modular}")
-print(f"Learn Edges: {args.learn_edges}")
+#print(f"Learn Edges: {args.learn_edges}")
 print(f"Encoder: {args.encoder}")
 print(f"Num Objects: {args.num_objects}")
 print(f"Dataset: {args.dataset}")
@@ -145,7 +145,7 @@ else:
 
 model.eval()
 
-Reward_Model = RewardPredictor(args.embedding_dim * args.num_objects).to(device)
+Reward_Model = RewardPredictor(args.embedding_dim_per_object * args.num_objects).to(device)
 
 def evaluate(valid_loader):
     valid_loss = 0.0
@@ -156,9 +156,9 @@ def evaluate(valid_loader):
         _, _, obs, reward, target = data_batch
 
         state, _ = model.encode(obs)
-        state = state.view(state.shape[0], args.num_objects * args.embedding_dim)
+        state = state.view(state.shape[0], args.num_objects * args.embedding_dim_per_object)
         reward_state, _ = model.encode(target)
-        reward_state = reward_state.view(state.shape[0], args.num_objects * args.embedding_dim)
+        reward_state = reward_state.view(state.shape[0], args.num_objects * args.embedding_dim_per_object)
 
         state_emb = torch.cat([state, reward_state], dim=1)
         reward_pred = Reward_Model(state_emb).view(reward.shape)
@@ -189,11 +189,12 @@ def train(max_epochs, lr):
             _, _, obs, reward, target = data_batch
 
             optimizer.zero_grad()
-
+            #print(obs.size())
             state, _ = model.encode(obs)
-            state = state.view(state.shape[0], args.num_objects * args.embedding_dim)
+            state = state.view(state.shape[0], args.num_objects * args.embedding_dim_per_object)
+            #print(target.size())
             reward_state, _ = model.encode(target)
-            reward_state = reward_state.view(state.shape[0], args.num_objects * args.embedding_dim)
+            reward_state = reward_state.view(state.shape[0], args.num_objects * args.embedding_dim_per_object)
 
             state_emb = torch.cat([state, reward_state], dim=1)
             reward_pred = Reward_Model(state_emb).view(reward.shape)
