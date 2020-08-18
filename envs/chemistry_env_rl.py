@@ -27,14 +27,6 @@ mpl.use('Agg')
 
 def random_dag(M, N, g = None):
     """Generate a random Directed Acyclic Graph (DAG) with a given number of nodes and edges."""
-    if M == 3:
-        return np.array([[0, 0, 0],[1, 0, 0], [1, 0, 0]])
-    if M == 5:
-        return np.array([[0., 0., 0., 0., 0.],
-        [1., 0., 0., 0., 0.],
-        [1., 0., 0., 0., 0.],
-        [1., 1., 0., 0., 0.],
-        [0., 0., 1., 0., 0.]]) 
     if g is None:
         expParents = 5
         idx        = np.arange(M).astype(np.float32)[:,np.newaxis]
@@ -423,8 +415,8 @@ class ColorChangingRL(gym.Env):
         mask = mask.repeat(1, 1, self.num_colors)
         self.mask = mask.view(self.adjacency_matrix.size(0), -1)
 
-    def generate_target(self):
-        for i in range(self.num_target_interventions):
+    def generate_target(self, num_steps = 10):
+        for i in range(num_steps):
             intervention_id = random.randint(0, self.num_objects - 1)
             to_color = random.randint(0, self.num_colors - 1)
             #while to_color == torch.argmax(self.object_to_color[intervention_id]):
@@ -452,7 +444,7 @@ class ColorChangingRL(gym.Env):
             s_.append(s.detach().cpu().numpy().tolist())
         return s_
 
-    def reset(self, graph = None):
+    def reset(self, num_steps = 10, graph = None):
         self.cur_step = 0
 
         self.object_to_color = [torch.zeros(self.num_colors) for _ in range(self.num_objects)]
@@ -482,7 +474,7 @@ class ColorChangingRL(gym.Env):
                     color=torch.argmax(self.object_to_color[idx]))
         self.sample_variables_target(0, do_everything = True)
 
-        self.generate_target()
+        self.generate_target(num_steps = 10)
         #self.check_softmax()
         #self.check_softmax_target()
         observations = self.render()
