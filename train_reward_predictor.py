@@ -94,7 +94,7 @@ print(f"Encoder: {args.encoder}")
 print(f"Num Objects: {args.num_objects}")
 print(f"Dataset: {args.dataset}")
 
-if args.cswm:
+if args.contrastive:
     model = ContrastiveSWM(
         embedding_dim=args.embedding_dim,
         hidden_dim=args.hidden_dim,
@@ -114,19 +114,20 @@ if args.cswm:
     print(f'Number of parameters: {num_enc + num_tr}')
 else:
     model = CausalTransitionModel(
-        embedding_dim=args.embedding_dim,
+        embedding_dim_per_object=args.embedding_dim_per_object,
         hidden_dim=args.hidden_dim,
         action_dim=args.action_dim,
         input_dims=input_shape,
         input_shape=input_shape,
-        num_graphs=args.num_graphs,
         modular=args.modular,
         predict_diff=args.predict_diff,
-        learn_edges=args.learn_edges,
         vae=args.vae,
         num_objects=args.num_objects,
         encoder=args.encoder,
-        multiplier=args.multiplier).to(device)
+        gnn=args.gnn,
+        multiplier=args.multiplier,
+        ignore_action=args.ignore_action,
+        copy_action=args.copy_action).to(device)
 
     num_enc = sum(p.numel() for p in model.encoder_parameters())
     num_dec = sum(p.numel() for p in model.decoder_parameters())
