@@ -315,4 +315,4 @@ if args.eval_dataset is not None:
     utils.eval_steps(
         model, [1, 5, 10],
         filename=args.eval_dataset, batch_size=args.batch_size,
-        save_folder = save_folder, device=device, action_dim = args.action_dim, cswm  = args.contrastive)
+        save_folder = save_folder, device=device, action_dim = args.action_dim, contrastive = args.contrastive)
