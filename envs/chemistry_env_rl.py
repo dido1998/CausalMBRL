@@ -585,13 +585,16 @@ class ColorChangingRL(gym.Env):
 
         
         done = False
-        
+        objects = self.objects.copy()
+        object_to_color = self.object_to_color.copy()
         self.translate(obj_id, color_id)
         matches = 0
         for c1, c2 in zip(self.object_to_color, self.object_to_color_target):
             if torch.argmax(c1).item() == torch.argmax(c2).item():
                 matches+=1
         reward = 0
+        self.objects = objects
+        self.object_to_color = object_to_color
         #reward = 0
         #if matches == self.num_objects:
         #    reward = 1
