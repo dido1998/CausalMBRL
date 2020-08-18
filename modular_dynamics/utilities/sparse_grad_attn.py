@@ -1,4 +1,3 @@
-
 '''
 Giving an N x M attention matrix, returns the same matrix,
 but performs masking to determine where to block gradients.
@@ -22,6 +21,7 @@ class blocked_grad(torch.autograd.Function):
     def backward(ctx, grad_output):
         x, mask = ctx.saved_tensors
         return grad_output * mask, mask * 0.0
+
 
 class Sparse_grad_attention(torch.autograd.Function):
     # def __init__(self, top_k):
@@ -58,6 +58,7 @@ if __name__ == "__main__":
     print('output', sga(x))
 
     (sga(x).sum()).backward()
+
     print('sparse grad', x.grad)
 
     x = Variable(x.data, requires_grad=True)

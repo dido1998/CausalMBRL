@@ -23,7 +23,7 @@ from cswm.utils import OneHot
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--batch-size', type=int, default=32,
+parser.add_argument('--batch-size', type=int, default=1024,
                     help='Batch size.')
 parser.add_argument('--epochs', type=int, default=100,
                     help='Number of training epochs.')
@@ -48,8 +48,6 @@ parser.add_argument('--modular', action='store_true',
                     help='Is the learned model modular?')
 parser.add_argument('--vae', action='store_true',
                     help='Is the learned encoder decoder model a VAE model?')
-parser.add_argument('--learn-edges', action='store_true',
-                    help='Does the model have learned edges?')
 parser.add_argument('--predict-diff', action='store_true',
                     help='Do we predict the difference of current and next state?')
 parser.add_argument('--hidden-dim', type=int, default=512,
@@ -60,8 +58,6 @@ parser.add_argument('--action-dim', type=int, default=5,
                     help='Dimensionality of action space.')
 parser.add_argument('--num-objects', type=int, default=5,
                     help='Number of object slots in model.')
-parser.add_argument('--num-graphs', type=int, default=10,
-                    help='Number of graphs to sample.')
 parser.add_argument('--ignore-action', action='store_true', default=False,
                     help='Ignore action in GNN transition model.')
 parser.add_argument('--copy-action', action='store_true', default=False,
@@ -98,12 +94,8 @@ parser.add_argument('--name', type=str, default='none',
 parser.add_argument('--save-folder', type=Path,
                     default=Path('checkpoints'),
                     help='Path to checkpoints.')
-parser.add_argument('--reload-folder', type=Path,
-                    default=Path('checkpoints'),
-                    help='Path to reload file.')
-parser.add_argument('--reload', action='store_true',
-                    help='reload encoder, decoder')
 parser.add_argument('--rim', action = 'store_true')
+parser.add_argument('--scoff', action = 'store_true')
 parser.add_argument('--rules', action = 'store_true')
 
 
@@ -134,7 +126,6 @@ else:
 meta_file = save_folder / 'metadata.pkl'
 model_file = save_folder / 'model.pt'
 finetune_file = save_folder / 'finetuned_model.pt'
-reload_file = args.reload_folder / 'model.pt'
 
 log_file = save_folder / 'log.txt'
 
@@ -150,35 +141,21 @@ with open(meta_file, "wb") as f:
 
 device = torch.device('cuda' if args.cuda else 'cpu')
 
-dataset = utils.LSTMDataset(
-    hdf5_file=args.dataset, action_transform=OneHot(args.num_objects * args.action_dim))
-train_loader = data.DataLoader(
-    dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-
-dataset = utils.LSTMDataset(
-    hdf5_file=args.valid_dataset, action_transform=OneHot(args.num_objects * args.action_dim))
-valid_loader = data.DataLoader(
-    dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-
 model = CausalTransitionModelLSTM(
     embedding_dim_per_object=args.embedding_dim_per_object,
     hidden_dim=args.hidden_dim,
     action_dim=args.action_dim,
     input_dims=(3, 50, 50),
     input_shape=(3, 50, 50),
-    num_graphs=args.num_graphs,
     modular=args.modular,
     predict_diff=args.predict_diff,
-    learn_edges=args.learn_edges,
     vae=args.vae,
     num_objects=args.num_objects,
     encoder=args.encoder, 
-    rim = args.rim).to(device)
+    rim = args.rim,
+    scoff = args.scoff).to(device)
 
 model.apply(utils.weights_init)
-
-if args.rim:
-    args.hidden_dim = 600
 
 def evaluate(model_file, valid_loader, train_encoder = True, train_decoder = True, train_transition = False):
     model.eval()
@@ -187,30 +164,30 @@ def evaluate(model_file, valid_loader, train_encoder = True, train_decoder = Tru
     with torch.no_grad():
         for batch_idx, data_batch in enumerate(valid_loader):
             data_batch = [tensor.to(device) for tensor in data_batch]
-            obs, action, _, _ = data_batch
-
-            obs = obs.transpose(1,0)
-            action = action.transpose(1,0)
-
-            if not args.rim:
-                hidden = (torch.zeros(obs[0].squeeze(0).size(0), args.hidden_dim).cuda(), torch.zeros(obs[0].squeeze(0).size(0), args.hidden_dim).cuda())
+            if train_transition:
+                obs, action, _, _ = data_batch
+                obs = obs.transpose(1,0)
+                action = action.transpose(1,0)
             else:
-                hidden = model.transition_nets.init_hidden(obs[0].squeeze(0).size(0))
+                obs, action, next_obs, _, _ = data_batch
+                obs = torch.stack([obs, next_obs])
+                action = action.unsqueeze(0)
+
+            hidden = (torch.zeros(1, obs[0].size(0), 600).cuda(), 
+                torch.zeros(1, obs[0].size(0), 600).cuda())
 
             loss = 0.0
             n_examples = 0
 
             for j in range(obs.shape[0] - 1):
+                state, mean_var = model.encode(obs[j])
+                next_state, next_mean_var = model.encode(obs[j+1])
+                pred_state, hidden = model.transition(state, action[j], hidden)
+
                 if args.contrastive:
-                    state, _ = model.encode(obs[j].squeeze(0))
-                    next_state, _ = model.encode(obs[j+1].squeeze(0))
-                    pred_state, hidden = model.transition(state, action[j])
                     loss += contrastive_loss(state, action[j], next_state, pred_state,
                                             args.hinge, args.sigma)
                 else:
-                    state, mean_var = model.encode(obs[j].squeeze(0))
-                    next_state, next_mean_var = model.encode(obs[j+1].squeeze(0))
-                    pred_state, hidden = model.transition(state, action[j], hidden)
                     recon = model.decoder(state)
                     next_recon = model.decoder(next_state)
 
@@ -257,35 +234,35 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
         iterator = tqdm.tqdm(train_loader, desc=f'Epoch {epoch}',
                              disable=args.silent)
         for batch_idx, data_batch in enumerate(iterator):
-
             model.train()
             data_batch = [tensor.to(device) for tensor in data_batch]
-            obs, action, _, _ = data_batch
 
-            obs = obs.transpose(1,0)
-            action = action.transpose(1,0)
+            if train_transition:
+                obs, action, _, _ = data_batch
+                obs = obs.transpose(1,0)
+                action = action.transpose(1,0)
+            else:
+                obs, action, next_obs, _, _ = data_batch
+                obs = torch.stack([obs, next_obs])
+                action = action.unsqueeze(0)
 
             optimizer.zero_grad()
 
-            if not args.rim:
-                hidden = (torch.zeros(obs[0].squeeze(0).size(0), args.hidden_dim).cuda(), torch.zeros(obs[0].squeeze(0).size(0), args.hidden_dim).cuda())
-            else:
-                hidden = model.transition_nets.init_hidden(obs[0].squeeze(0).size(0))
+            hidden = (torch.zeros(1, obs[0].size(0), 600).cuda(), 
+                torch.zeros(1, obs[0].size(0), 600).cuda())
 
             loss = 0.0
             n_examples = 0
 
             for j in range(obs.shape[0] - 1):
+                state, mean_var = model.encode(obs[j])
+                next_state, next_mean_var = model.encode(obs[j+1])
+                pred_state, hidden = model.transition(state, action[j], hidden)
+
                 if args.contrastive:
-                    state, _ = model.encode(obs[j].squeeze(0))
-                    next_state, _ = model.encode(obs[j+1].squeeze(0))
-                    pred_state, hidden = model.transition(state, action[j])
                     loss += contrastive_loss(state, action[j], next_state, pred_state,
                                             args.hinge, args.sigma)
                 else:
-                    state, mean_var = model.encode(obs[j].squeeze(0))
-                    next_state, next_mean_var = model.encode(obs[j+1].squeeze(0))
-                    pred_state, hidden = model.transition(state, action[j], hidden)
                     recon = model.decoder(state)
                     next_recon = model.decoder(next_state)
 
@@ -297,7 +274,7 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
                             loss += image_loss(next_recon, obs[j+1])
                             if args.vae:
                                 loss += kl_loss(next_mean_var[0], next_mean_var[1])
-
+                    
                     if train_transition:
                         loss += transition_loss(pred_state, next_state)
 
@@ -330,9 +307,38 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
             torch.save(model.state_dict(), model_file)
 
 if args.contrastive:
+    dataset = utils.LSTMDataset(
+        hdf5_file=args.dataset, action_transform=OneHot(args.num_objects * args.action_dim))
+    train_loader = data.DataLoader(
+        dataset, batch_size=32, shuffle=True, num_workers=args.num_workers)
+    valid_dataset = utils.LSTMDataset(
+        hdf5_file=args.valid_dataset, action_transform=OneHot(args.num_objects * args.action_dim))
+    valid_loader = data.DataLoader(
+        valid_dataset, batch_size=32, shuffle=True, num_workers=args.num_workers)
+
     train(args.epochs, model_file, lr=args.lr, train_encoder=True, train_transition=True, train_decoder=False)
 else:
+    dataset = utils.StateTransitionsDataset(
+        hdf5_file=args.dataset, action_transform=OneHot(args.num_objects * args.action_dim))
+    train_loader = data.DataLoader(
+        dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    valid_dataset = utils.StateTransitionsDataset(
+        hdf5_file=args.valid_dataset, action_transform=OneHot(args.num_objects * args.action_dim))
+    valid_loader = data.DataLoader(
+        valid_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+
     train(args.pretrain_epochs, model_file, lr=args.lr, train_encoder=True, train_transition=False, train_decoder=True)
+
+    del dataset, train_loader, valid_loader, valid_dataset
+    dataset = utils.LSTMDataset(
+        hdf5_file=args.dataset, action_transform=OneHot(args.num_objects * args.action_dim))
+    train_loader = data.DataLoader(
+        dataset, batch_size=32, shuffle=True, num_workers=args.num_workers)
+    valid_dataset = utils.LSTMDataset(
+        hdf5_file=args.valid_dataset, action_transform=OneHot(args.num_objects * args.action_dim))
+    valid_loader = data.DataLoader(
+        valid_dataset, batch_size=32, shuffle=True, num_workers=args.num_workers)
+
     train(args.epochs, model_file, lr=args.transit_lr, train_encoder=False, train_transition=True, train_decoder=False)
     train(args.epochs, finetune_file, lr=args.lr, train_encoder=True, train_decoder=True, train_transition=True)
 

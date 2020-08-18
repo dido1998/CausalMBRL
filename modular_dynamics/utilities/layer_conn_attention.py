@@ -1,4 +1,5 @@
 
+
 from .attention import ScaledDotProductAttention
 import torch
 import torch.nn as nn
@@ -81,5 +82,6 @@ class LayerConnAttention(nn.Module):
         #print('output input diff', output - residual)
 
         return output, attn, extra_loss
+
 
 

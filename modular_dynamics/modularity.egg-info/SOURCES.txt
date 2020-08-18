@@ -1,0 +1,9 @@
+README.md
+modularity.py
+setup.py
+modularity.egg-info/PKG-INFO
+modularity.egg-info/SOURCES.txt
+modularity.egg-info/dependency_links.txt
+modularity.egg-info/entry_points.txt
+modularity.egg-info/requires.txt
+modularity.egg-info/top_level.txt

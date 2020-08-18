@@ -11,7 +11,7 @@ from . import (
     EncoderCNNSmall, EncoderCNNMedium, EncoderCNNLarge,
     DecoderCNNSmall, DecoderCNNMedium, DecoderCNNLarge)
 
-from .recurrent.rnn_models_wiki import RNNModel
+from modularity import RIM, SCOFF
 
 class CausalTransitionModel(nn.Module):
     """Main module for a Causal transition model.
@@ -26,7 +26,7 @@ class CausalTransitionModel(nn.Module):
                  action_dim, num_objects, input_shape=[3, 50, 50],
                  predict_diff=True, encoder='large', modular=False, 
                  vae=False, gnn=False, multiplier=1, ignore_action=False,
-                 copy_action=False, hinge=1., sigma=0.5):
+                 copy_action=False):
         super(CausalTransitionModel, self).__init__()
 
         self.hidden_dim = hidden_dim
@@ -204,7 +204,6 @@ class CausalTransitionModel(nn.Module):
 
 class CausalTransitionModelLSTM(nn.Module):
     """Main module for a Recurrent Causal transition model.
-
     Args:
         embedding_dim: Dimensionality of abstract state space.
         input_dims: Shape of input observation.
@@ -214,10 +213,8 @@ class CausalTransitionModelLSTM(nn.Module):
         rim: If False uses LSTM else RIMs (goyal et al)
     """
     def __init__(self, embedding_dim_per_object, input_dims, hidden_dim, action_dim,
-                 num_objects, state_dim=32, input_shape=[3, 50, 50],
-                 predict_diff=True, encoder='large', num_graphs=10,
-                 modular=False, learn_edges=False, vae=False, rim = False, multiplier=1):
-
+                 num_objects, input_shape=[3, 50, 50], predict_diff=True, encoder='large',
+                 modular=False, vae=False, rim = False, scoff = False, multiplier=1):
         super(CausalTransitionModelLSTM, self).__init__()
 
         self.hidden_dim = hidden_dim
@@ -225,12 +222,8 @@ class CausalTransitionModelLSTM(nn.Module):
         self.num_objects = num_objects
         self.input_shape = input_shape
         self.modular = modular
-        self.learn_edges = learn_edges
         self.predict_diff = predict_diff
-        self.num_graphs = num_graphs
         self.vae = vae
-
-        self.mse_loss = torch.nn.MSELoss(reduction='sum')
 
         num_channels = input_dims[0]
         width_height = input_dims[1:]
@@ -288,17 +281,6 @@ class CausalTransitionModelLSTM(nn.Module):
                 hidden_dim=hidden_dim,
                 output_dim=self.embedding_dim,
                 num_objects=num_objects)
-
-            self.transition_nets = nn.ModuleList()
-
-            for i in range(self.num_objects):
-                net = MLPTransition(
-                    state_dim=self.embedding_dim*self.num_objects,
-                    num_actions=self.num_objects * self.action_dim,
-                    hidden_dim=self.hidden_dim//self.num_objects * multiplier, #change this to overparameterize transition model
-                    output_dim=self.embedding_dim
-                    )
-                self.transition_nets.append(net)
         else:
             if self.vae:
                 obj_encoder = EncoderMLP(
@@ -313,15 +295,19 @@ class CausalTransitionModelLSTM(nn.Module):
                     hidden_dim=hidden_dim, num_objects=num_objects,
                     flatten_input=True)
             
-            self.rim = False
+            self.action_encoder = nn.Linear(self.num_objects * self.action_dim, self.hidden_dim)
+            self.obs_encoder = nn.Linear(self.embedding_dim, self.hidden_dim)
 
             if rim == True:
                 self.rim = True
-                self.transition_nets = RNNModel('LSTM', self.embedding_dim + self.num_objects * self.action_dim, self.embedding_dim + self.num_objects * self.action_dim, [400], 1,  num_blocks = [5], topk = [3])
-                self.transition_linear = nn.Linear(400, self.embedding_dim)
+                self.transition_nets =  RIM('cuda', 2 * self.hidden_dim, 600, 6, 4, rnn_cell = 'LSTM', n_layers = 1, bidirectional = False)
+                self.transition_linear = nn.Linear(600, self.embedding_dim)
+            elif scoff == True:
+                self.transition_nets = SCOFF('cuda', 2 * self.hidden_dim, 600, 4, 3, num_templates = 2, rnn_cell = 'LSTM', n_layers = 1, bidirectional = False)
+                self.transition_linear = nn.Linear(600, self.embedding_dim)
             else:
-                self.transition_nets = nn.LSTMCell(self.embedding_dim + self.num_objects * self.action_dim, 512)
-                self.transition_linear = nn.Linear(512, self.embedding_dim)
+                self.transition_nets = nn.LSTM(2 * self.hidden_dim, 600)
+                self.transition_linear = nn.Linear(600, self.embedding_dim)
 
         self.encoder = nn.Sequential(OrderedDict(
             obj_extractor=obj_extractor,
@@ -336,9 +322,19 @@ class CausalTransitionModelLSTM(nn.Module):
             for net in self.transition_nets:
                 parameters = chain(parameters, net.parameters())
         else:
-            return self.transition_nets.parameters()
+            return list(self.transition_nets.parameters()) + list(self.transition_linear.parameters())
 
         return parameters
+
+    def transition(self, state, action, hidden):
+        encoded_action = self.action_encoder(action)
+        encoded_state = self.obs_encoder(state)
+        x = torch.cat((encoded_state, encoded_action), dim = 1)
+        x = x.unsqueeze(0)
+        x, hidden = self.transition_nets(x, hidden)
+        x = x.squeeze(0)
+        x = self.transition_linear(x)
+        return x, hidden
 
     def encoder_parameters(self):
         return self.encoder.parameters()
@@ -349,35 +345,31 @@ class CausalTransitionModelLSTM(nn.Module):
     def encode(self, obs):
         enc = self.encoder(obs)
         if self.vae:
-            mu = enc[:, :self.state_dim]
-            logvar = enc[:, self.state_dim:]
+            mu = enc[:, :self.embedding_dim]
+            logvar = enc[:, self.embedding_dim:]
             if self.training:
                 sigma = torch.exp(0.5 * logvar)
                 eps = torch.randn_like(sigma)
                 z = mu + eps * sigma
             else:
                 z = mu
-            return z, -0.5 * torch.sum(1 + logvar - \
-                mu.pow(2) - logvar.exp())
+            return z, (mu, logvar)
         else:
-            return enc, 0.0
+            return enc, None
 
-    def transition(self, state, action, hidden, next_state=None):
-        # Modular RIM something
+    def transition(self, state, action, hidden):
+        encoded_action = self.action_encoder(action)
+        encoded_state = self.obs_encoder(state)
+        
+        x = torch.cat((encoded_state, encoded_action), dim = 1)
+        x = x.unsqueeze(0)
+        x, hidden = self.transition_nets(x, hidden)
+        x = self.transition_linear(x)
+        x = x.squeeze(0)
 
-        x_orig = state
-        x = torch.cat((state, action), dim =1)
-        if self.rim:
-            x = x.unsqueeze(0)
-
-            x, hidden, _,_,_,_,_ = self.transition_nets(x, hidden)
-            x = x.squeeze(0)
-            x = self.transition_linear(x)
-        else:
-            h, c = self.transition_nets(x, hidden)
-            x = self.transition_linear(h)
         if self.predict_diff:
-            x = x + x_orig
+            x = state + x
+
         return x, hidden
 
     def forward(self, obs):

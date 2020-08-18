@@ -2,10 +2,11 @@
 import torch
 import torch.nn as nn
 
-from .attention import MultiHeadAttention
-from .BlockGRU import BlockGRU
-from .BlockLSTM import BlockLSTM
-from .sparse_grad_attn import blocked_grad
+from utilities.attention_rim import MultiHeadAttention
+from utilities.BlockGRU import BlockGRU
+from utilities.BlockLSTM import BlockLSTM
+from utilities.sparse_grad_attn import blocked_grad
+from utilities.RuleNetwork import RuleNetwork
 
 
 '''
@@ -22,7 +23,8 @@ Core blocks module.  Takes:
 class BlocksCore(nn.Module):
 
 
-    def __init__(self, ninp, nhid, num_blocks_in, num_blocks_out, topkval, step_att, do_gru, num_modules_read_input=2, device=None):
+    def __init__(self, ninp, nhid, num_blocks_in, num_blocks_out, topkval, step_att, do_gru, num_modules_read_input=2, device=None,
+        num_rules = 0, rule_time_steps = 0):
         super(BlocksCore, self).__init__()
         self.nhid = nhid
         self.num_blocks_in = num_blocks_in
@@ -51,9 +53,31 @@ class BlocksCore(nn.Module):
         self.inp_att = MultiHeadAttention(n_head=1, d_model_read=self.block_size_out, d_model_write=ninp, d_model_out=self.att_out, d_k=64, d_v=self.att_out, num_blocks_read=num_blocks_out, num_blocks_write=num_modules_read_input,residual=False, topk=self.num_blocks_in+1, grad_sparse=False, skip_write=True)
 
         if do_gru:
+            print('USING GRU!')
             self.block_lstm = BlockGRU(self.att_out*self.num_blocks_out, self.nhid, k=self.num_blocks_out)
         else:
+            print('USING LSTM!')
             self.block_lstm = BlockLSTM(self.att_out*self.num_blocks_out, self.nhid, k=self.num_blocks_out)
+        self.design_config = {'comm': True, 'grad': False,
+                    'transformer': True , 'application_option': 3}
+
+
+        rule_config = {'rule_time_steps': rule_time_steps, 'num_rules': num_rules,
+                    'rule_emb_dim': 64, 'rule_query_dim':32,
+                    'rule_value_dim':64, 'rule_key_dim':32, 'rule_heads':4, 'rule_dropout':0.5}
+        self.use_rules = rule_config is not None and rule_config['num_rules'] > 0
+        if rule_config is not None and rule_config['num_rules'] > 0:
+            if True:
+                print('Num Rules:' + str(num_rules))
+                print('Rule Time Steps:' + str(rule_config['rule_time_steps']))
+                self.rule_network = RuleNetwork(self.block_size_out, num_blocks_out, num_rules = rule_config['num_rules'],
+                    rule_dim = rule_config['rule_emb_dim'], query_dim = rule_config['rule_query_dim'], value_dim = rule_config['rule_value_dim'],
+                    key_dim = rule_config['rule_key_dim'], num_heads = rule_config['rule_heads'], dropout = rule_config['rule_dropout'],
+                    design_config = self.design_config).to(device) 
+            #else:
+            #    self.rule_network = RuleNetwork(self.block_size_out, num_blocks_out, num_rules = rule_config['num_rules'], rule_dim = rule_config['rule_emb_dim'], query_dim = rule_config['rule_query_dim'], value_dim = rule_config['rule_value_dim'], key_dim = rule_config['rule_key_dim'], num_heads = rule_config['rule_heads'], dropout = rule_config['rule_dropout']).to(device)
+
+            self.rule_time_steps = rule_config['rule_time_steps']
 
         self.device = device
 
@@ -96,22 +120,34 @@ class BlocksCore(nn.Module):
 
 
         if self.do_gru:
-            hx_new = self.block_lstm(inp_use, hx)
+            hx_new, _ = self.block_lstm(inp_use, hx)
             cx_new = hx_new
         else:
-            hx_new, cx_new = self.block_lstm(inp_use, hx, cx)
+            hx_new, cx_new, _ = self.block_lstm(inp_use, hx, cx)
+
+        # Get Rules to apply
+
 
         #Communication b/w different Blocks
-        if self.step_att:
+        if do_block:
            
 
-            if True:
+            if self.design_config is None or self.design_config['comm']:
                 hx_new = hx_new.reshape((hx_new.shape[0], self.num_blocks_out, self.block_size_out))
                 hx_new_grad_mask = blocked_grad.apply(hx_new, mask.reshape((mask.shape[0], self.num_blocks_out, self.block_size_out)))
                 hx_new_att,attn_out,extra_loss_att = self.mha(hx_new_grad_mask,hx_new_grad_mask,hx_new_grad_mask)
                 hx_new = hx_new + hx_new_att
                 hx_new = hx_new.reshape((hx_new.shape[0], self.nhid))
                 extra_loss = extra_loss_att
+
+            if self.use_rules:
+                
+                hx_new = hx_new.reshape((hx_new.shape[0], self.num_blocks_out, self.block_size_out))
+                #encoder_outputs = encoder_outputs.reshape((hx_new.shape[0], self.num_blocks_out, self.block_size_out))
+                for r in range(self.rule_time_steps):
+                    hx_new = self.rule_network(hx_new) + hx_new
+                hx_new = hx_new.reshape((hx_new.shape[0], self.num_blocks_out * self.block_size_out))
+
             
 
         hx = (mask)*hx_new + (1-mask)*hx_old
