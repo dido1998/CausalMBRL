@@ -160,7 +160,7 @@ def planning_best(env, episode_count):
         rewards.append(reward)
 
     rewards = np.array(rewards)
-    success = rewards == 0.0
+    success = get_success(rewards)
 
     print("Mean: ", np.mean(rewards))
     print("Standard Deviation: ", np.std(rewards))
@@ -180,7 +180,7 @@ def planning_random(env, episode_count):
         rewards.append(reward)
 
     rewards = np.array(rewards)
-    success = rewards == 0.0
+    success = get_success(rewards)
 
     print("Mean: ", np.mean(rewards))
     print("Standard Deviation: ", np.std(rewards))
