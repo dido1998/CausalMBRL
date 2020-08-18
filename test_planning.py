@@ -8,7 +8,7 @@ import gym
 import torch
 import torch.nn.functional as F
 
-from cswm.models.modules import CausalTransitionModel, ContrastiveSWM, RewardPredictor, ContrastiveSWMFinal
+from cswm.models.modules import CausalTransitionModel, RewardPredictor#, ContrastiveSWM, , ContrastiveSWMFinal
 
 from cswm import utils
 from cswm.utils import OneHot
@@ -16,6 +16,25 @@ from torch.utils import data
 
 num_steps = 5
 num_eval = 100
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--save-folder', type=Path,
+                    default='checkpoints',
+                    help='Path to checkpoints.')
+parser.add_argument('--finetune', action='store_true', default=False,
+                    help='Whether to use finetuned model')
+parser.add_argument('--random', action='store_true', default=False,
+                    help='Whether to use finetuned model')
+parser.add_argument('--env-id', type = str)
+
+args_eval = parser.parse_args()
+
+
+def get_success(rewards):
+    if 'ColorChanging' in args_eval.env_id:
+        return rewards == 1.0
+    else:
+        return rewards == 0.0
 
 def get_best_action(env):
     n = env.action_space.n
@@ -41,9 +60,9 @@ def get_best_model_action(obs, target, action_space, model, reward_model):
         obs = torch.tensor(obs).cuda().float().unsqueeze(0)
 
         state, _ = model.encode(obs)
-        state = state.view(state.shape[0], args.num_objects * args.embedding_dim)
+        state = state.view(state.shape[0], args.num_objects * args.embedding_dim_per_object)
         target_state, _ = model.encode(target)
-        target_state = target_state.view(target_state.shape[0], args.num_objects * args.embedding_dim)
+        target_state = target_state.view(target_state.shape[0], args.num_objects * args.embedding_dim_per_object)
 
         emb = torch.cat([state, target_state], dim=1)
 
@@ -65,8 +84,8 @@ def get_best_model_action_transition(state, target_state, action_space, model, r
         action = F.one_hot(torch.tensor(i).long(), num_classes=n).cuda().float().unsqueeze(0)
         next_state = model.transition(state, action)
 
-        emb = torch.cat([next_state.view(next_state.shape[0], args.num_objects * args.embedding_dim),
-                         target_state.view(target_state.shape[0], args.num_objects * args.embedding_dim)],
+        emb = torch.cat([next_state.view(next_state.shape[0], args.num_objects * args.embedding_dim_per_object),
+                         target_state.view(target_state.shape[0], args.num_objects * args.embedding_dim_per_object)],
                          dim = 1)
 
         reward_pred = reward_model(emb).detach().cpu().item()
@@ -94,7 +113,7 @@ def planning_model(env, model, reward_model, episode_count):
         rewards.append(reward)
 
     rewards = np.array(rewards)
-    success = rewards == 0.0 
+    success = get_success(rewards)
 
     print("Mean: ", np.mean(rewards))
     print("Standard Deviation: ", np.std(rewards))
@@ -121,7 +140,7 @@ def planning_model_transition(env, model, reward_model, episode_count):
         rewards.append(reward)
 
     rewards = np.array(rewards)
-    success = rewards == 0.0 
+    success = get_success(rewards)
 
     print("Mean: ", np.mean(rewards))
     print("Standard Deviation: ", np.std(rewards))
@@ -168,16 +187,9 @@ def planning_random(env, episode_count):
     print("Success Rate: ", np.mean(success))
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--save-folder', type=Path,
-                    default='checkpoints',
-                    help='Path to checkpoints.')
-parser.add_argument('--finetune', action='store_true', default=False,
-                    help='Whether to use finetuned model')
-parser.add_argument('--random', action='store_true', default=False,
-                    help='Whether to use finetuned model')
 
-args_eval = parser.parse_args()
+if 'ColorChanging' in args_eval.env_id:
+    graph_location = 'data/ColorChangingRL'
 
 meta_file = args_eval.save_folder / 'metadata.pkl'
 
@@ -193,6 +205,11 @@ reward_model_file = args_eval.save_folder / 'reward_model.pt'
 with open(meta_file, 'rb') as f:
     args = pickle.load(f)['args']
 
+
+if 'ColorChanging' in args_eval.env_id:
+    graph_location = 'data/ColorChangingRL_'+str(args.num_objects)+'-'+str(args.action_dim)+'-'+args_eval.env_id.split('-')[-2]+'-train-graph-'+str(args.dataset).split('.')[0][-1]
+    print('graph location:' + str(graph_location))
+
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 if args.cuda:
@@ -205,12 +222,12 @@ input_shape = [3,50,50]
 print(input_shape)
 print("VAE: ", args.vae)
 print("Modular: ", args.modular)
-print("Learn Edges: ", args.learn_edges)
+#print("Learn Edges: ", args.learn_edges)
 print("Encoder: ", args.encoder)
 print("Num Objects: ", args.num_objects)
 print("Dataset: ", args.dataset)
 
-if args.cswm:
+if False and args.cswm:
     model = ContrastiveSWMFinal(
         embedding_dim=args.embedding_dim,
         hidden_dim=args.hidden_dim,
@@ -224,27 +241,30 @@ if args.cswm:
         encoder=args.encoder).cuda()
 else:
     model = CausalTransitionModel(
-        embedding_dim=args.embedding_dim,
+        embedding_dim_per_object=args.embedding_dim_per_object,
         hidden_dim=args.hidden_dim,
         action_dim=args.action_dim,
         input_dims=input_shape,
         input_shape=input_shape,
-        num_graphs=args.num_graphs,
         modular=args.modular,
         predict_diff=args.predict_diff,
-        learn_edges=args.learn_edges,
         vae=args.vae,
         num_objects=args.num_objects,
         encoder=args.encoder,
-        multiplier=args.multiplier).cuda()
+        gnn=args.gnn,
+        multiplier=args.multiplier,
+        ignore_action=args.ignore_action,
+        copy_action=args.copy_action).cuda()
 
     num_enc = sum(p.numel() for p in model.encoder_parameters())
     num_dec = sum(p.numel() for p in model.decoder_parameters())
     num_tr = sum(p.numel() for p in model.transition_parameters())
 
-Reward_Model = RewardPredictor(args.embedding_dim * args.num_objects).cuda()
+Reward_Model = RewardPredictor(args.embedding_dim_per_object * args.num_objects).cuda()
 
-with gym.make('WShapesRL-Observed-Train-3-Blues-v0') as env:
+with gym.make(args_eval.env_id) as env:
+    if 'ColorChanging' in args_eval.env_id:
+        env.unwrapped.load_save_information(torch.load(graph_location))
     print("Random Planning: ")
     planning_random(env, num_eval)
     print()
