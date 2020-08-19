@@ -3,6 +3,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import re
 
 import gym
 from collections import OrderedDict
@@ -21,6 +22,216 @@ import skimage.draw
 from cswm import utils
 import random
 
+graphs = {
+    'chain3':'0->1->2',
+    'fork3':'0->{1-2}',
+    'collider3':'{0-1}->2',
+    'collider4':'{0-2}->3',
+    'collider5':'{0-3}->4',
+    'collider6':'{0-4}->5',
+    'collider7':'{0-5}->6',
+    'collider8':'{0-6}->7',
+    'collider9':'{0-7}->8',
+    'collider10':'{0-8}->9',
+    'collider11':'{0-9}->10',
+    'collider12':'{0-10}->11',
+    'collider13':'{0-11}->12',
+    'collider14':'{0-12}->13',
+    'collider15':'{0-13}->14',
+    'confounder3':'{0-2}->{0-2}',
+    'chain4':'0->1->2->3',
+    'chain5':'0->1->2->3->4',
+    'chain6':'0->1->2->3->4->5',
+    'chain7':'0->1->2->3->4->5->6',
+    'chain8':'0->1->2->3->4->5->6->7',
+    'chain9':'0->1->2->3->4->5->6->7->8',
+    'chain10':'0->1->2->3->4->5->6->7->8->9',
+    'chain11':'0->1->2->3->4->5->6->7->8->9->10',
+    'chain12':'0->1->2->3->4->5->6->7->8->9->10->11',
+    'chain13':'0->1->2->3->4->5->6->7->8->9->10->11->12',
+    'chain14':'0->1->2->3->4->5->6->7->8->9->10->11->12->13',
+    'chain15':'0->1->2->3->4->5->6->7->8->9->10->11->12->13->14',
+    'full3':'{0-2}->{0-2}',
+    'full4':'{0-3}->{0-3}',
+    'full5':'{0-4}->{0-4}',
+    'full6':'{0-5}->{0-5}',
+    'full7':'{0-6}->{0-6}',
+    'full8':'{0-7}->{0-7}',
+    'full9':'{0-8}->{0-8}',
+    'full10':'{0-9}->{0-9}',
+    'full11':'{0-10}->{0-10}',
+    'full12':'{0-11}->{0-11}',
+    'full13':'{0-12}->{0-12}',
+    'full14':'{0-13}->{0-13}',
+    'full15':'{0-14}->{0-14}',
+    'tree9':'0->1->3->7,0->2->6,1->4,3->8,2->5',
+    'tree10':'0->1->3->7,0->2->6,1->4->9,3->8,2->5',
+    'tree11':'0->1->3->7,0->2->6,1->4->10,3->8,4->9,2->5',
+    'tree12':'0->1->3->7,0->2->6,1->4->10,3->8,4->9,2->5->11',
+    'tree13':'0->1->3->7,0->2->6,1->4->10,3->8,4->9,2->5->11,5->12',
+    'tree14':'0->1->3->7,0->2->6,1->4->10,3->8,4->9,2->5->11,5->12,6->13',
+    'tree15':'0->1->3->7,0->2->6->14,1->4->10,3->8,4->9,2->5->11,5->12,6->13',
+    'jungle3':'0->{1-2}',
+    'jungle4':'0->1->3,0->2,0->3',
+    'jungle5':'0->1->3,1->4,0->2,0->3,0->4',
+    'jungle6':'0->1->3,1->4,0->2->5,0->3,0->4,0->5',
+    'jungle7':'0->1->3,1->4,0->2->5,2->6,0->3,0->4,0->5,0->6',
+    'jungle8':'0->1->3->7,1->4,0->2->5,2->6,0->3,0->4,0->5,0->6,1->7',
+    'jungle9':'0->1->3->7,3->8,1->4,0->2->5,2->6,0->3,0->4,0->5,0->6,1->7,1->8',
+    'jungle10':'0->1->3->7,3->8,1->4->9,0->2->5,2->6,0->3,0->4,0->5,0->6,1->7,1->8,1->9',
+    'jungle11':'0->1->3->7,3->8,1->4->9,4->10,0->2->5,2->6,0->3,0->4,0->5,0->6,1->7,1->8,1->9,1->10',
+    'jungle12':'0->1->3->7,3->8,1->4->9,4->10,0->2->5->11,2->6,0->3,0->4,0->5,0->6,1->7,1->8,1->9,1->10,2->11',
+    'jungle13':'0->1->3->7,3->8,1->4->9,4->10,0->2->5->11,5->12,2->6,0->3,0->4,0->5,0->6,1->7,1->8,1->9,1->10,2->11,2->12',
+    'jungle14':'0->1->3->7,3->8,1->4->9,4->10,0->2->5->11,5->12,2->6->13,0->3,0->4,0->5,0->6,1->7,1->8,1->9,1->10,2->11,2->12,2->13',
+    'jungle15':'0->1->3->7,3->8,1->4->9,4->10,0->2->5->11,5->12,2->6->13,6->14,0->3,0->4,0->5,0->6,1->7,1->8,1->9,1->10,2->11,2->12,2->13,2->14',
+    'bidiag3':'{0-2}->{0-2}',
+    'bidiag4':'{0-1}->{1-2}->{2-3}',
+    'bidiag5':'{0-1}->{1-2}->{2-3}->{3-4}',
+    'bidiag6':'{0-1}->{1-2}->{2-3}->{3-4}->{4-5}',
+    'bidiag7':'{0-1}->{1-2}->{2-3}->{3-4}->{4-5}->{5-6}',
+    'bidiag8':'{0-1}->{1-2}->{2-3}->{3-4}->{4-5}->{5-6}->{6-7}',
+    'bidiag9':'{0-1}->{1-2}->{2-3}->{3-4}->{4-5}->{5-6}->{6-7}->{7-8}',
+    'bidiag10':'{0-1}->{1-2}->{2-3}->{3-4}->{4-5}->{5-6}->{6-7}->{7-8}->{8-9}',
+    'bidiag11':'{0-1}->{1-2}->{2-3}->{3-4}->{4-5}->{5-6}->{6-7}->{7-8}->{8-9}->{9-10}',
+    'bidiag12':'{0-1}->{1-2}->{2-3}->{3-4}->{4-5}->{5-6}->{6-7}->{7-8}->{8-9}->{9-10}->{10-11}',
+    'bidiag13':'{0-1}->{1-2}->{2-3}->{3-4}->{4-5}->{5-6}->{6-7}->{7-8}->{8-9}->{9-10}->{10-11}->{11-12}',
+    'bidiag14':'{0-1}->{1-2}->{2-3}->{3-4}->{4-5}->{5-6}->{6-7}->{7-8}->{8-9}->{9-10}->{10-11}->{11-12}->{12-13}',
+    'bidiag15':'{0-1}->{1-2}->{2-3}->{3-4}->{4-5}->{5-6}->{6-7}->{7-8}->{8-9}->{9-10}->{10-11}->{11-12}->{12-13}->{13-14}',
+}
+
+def parse_skeleton(graph, M=None):
+    """
+    Parse the skeleton of a causal graph in the mini-language of --graph.
+    
+    The mini-language is:
+        
+        GRAPH      = ""
+                     CHAIN{, CHAIN}*
+        CHAIN      = INT_OR_SET {-> INT_OR_SET}
+        INT_OR_SET = INT | SET
+        INT        = [0-9]*
+        SET        = \{ SET_ELEM {, SET_ELEM}* \}
+        SET_ELEM   = INT | INT_RANGE
+        INT_RANGE  = INT - INT
+    """
+    
+    regex = re.compile(r'''
+        \s*                                      # Skip preceding whitespace
+        (                                        # The set of tokens we may capture, including
+          [,]                                  | # Commas
+          (?:\d+)                              | # Integers
+          (?:                                    # Integer set:
+            \{                                   #   Opening brace...
+              \s*                                #   Whitespace...
+              \d+\s*(?:-\s*\d+\s*)?              #   First integer (range) in set...
+              (?:,\s*\d+\s*(?:-\s*\d+\s*)?\s*)*  #   Subsequent integers (ranges)
+            \}                                   #   Closing brace...
+          )                                    | # End of integer set.
+          (?:->)                                 # Arrows
+        )
+    ''', re.A|re.X)
+    
+    # Utilities
+    def parse_int(s):
+        try:    return int(s.strip())
+        except: return None
+    
+    def parse_intrange(s):
+        try:
+            sa, sb = map(str.strip, s.strip().split("-", 1))
+            sa, sb = int(sa), int(sb)
+            sa, sb = min(sa,sb), max(sa,sb)+1
+            return range(sa,sb)
+        except:
+            return None
+    
+    def parse_intset(s):
+        try:
+            i = set()
+            for s in map(str.strip, s.strip()[1:-1].split(",")):
+                if parse_int(s) is not None: i.add(parse_int(s))
+                else:                        i.update(set(parse_intrange(s)))
+            return sorted(i)
+        except:
+            return None
+    
+    def parse_either(s):
+        asint = parse_int(s)
+        if asint is not None: return asint
+        asset = parse_intset(s)
+        if asset is not None: return asset
+        raise ValueError
+    
+    def find_max(chains):
+        m = 0
+        for chain in chains:
+            for link in chain:
+                link = max(link) if isinstance(link, list) else link
+                m = max(link, m)
+        return m
+    
+    # Crack the string into a list of lists of (ints | lists of ints)
+    graph  = [graph] if isinstance(graph, str) else graph
+    chains = []
+    for gstr in graph:
+        for chain in re.findall("((?:[^,{]+|\{.*?\})+)+", gstr, re.A):
+            links = list(map(str.strip, regex.findall(chain)))
+            assert(len(links)&1)
+            
+            chain = [parse_either(links.pop(0))]
+            while links:
+                assert links.pop(0) == "->"
+                chain.append(parse_either(links.pop(0)))
+            chains.append(chain)
+    
+    # Find the maximum integer referenced within the skeleton
+    uM = find_max(chains)+1
+    if M is None:
+        M = uM
+    else:
+        assert(M >= uM)
+        M = max(M, uM)
+    
+    # Allocate adjacency matrix.
+    gamma = np.zeros((M,M), dtype=np.float32)
+    
+    # Interpret the skeleton
+    for chain in chains:
+        for prevlink, nextlink in zip(chain[:-1], chain[1:]):
+            if   isinstance(prevlink, list) and isinstance(nextlink, list):
+                for i in nextlink:
+                    for j in prevlink:
+                        if i>j:
+                            gamma[i,j] = 1
+            elif isinstance(prevlink, list) and isinstance(nextlink, int):
+                for j in prevlink:
+                    if nextlink>j:
+                        gamma[nextlink,j] = 1
+            elif isinstance(prevlink, int)  and isinstance(nextlink, list):
+                minn = min(nextlink)
+                if   minn == prevlink:
+                    raise ValueError("Edges are not allowed from " +
+                                     str(prevlink) + " to oneself!")
+                elif minn <  prevlink:
+                    raise ValueError("Edges are not allowed from " +
+                                     str(prevlink) + " to ancestor " +
+                                     str(minn) + " !")
+                else:
+                    for i in nextlink:
+                        gamma[i,prevlink] = 1
+            elif isinstance(prevlink, int)  and isinstance(nextlink, int):
+                if   nextlink == prevlink:
+                    raise ValueError("Edges are not allowed from " +
+                                     str(prevlink) + " to oneself!")
+                elif nextlink <  prevlink:
+                    raise ValueError("Edges are not allowed from " +
+                                     str(prevlink) + " to ancestor " +
+                                     str(nextlink) + " !")
+                else:
+                    gamma[nextlink,prevlink] = 1
+    
+    # Return adjacency matrix.
+    return gamma
 
 
 mpl.use('Agg')
@@ -36,22 +247,7 @@ def random_dag(M, N, g = None):
         B          = np.tril(B, -1)
         return B
     else:
-        gammagt = np.zeros((M, M))            
-        for e in g.split(","):
-            if e == "": continue
-            nodes = e.split("->")
-            if len(nodes) <= 1: continue
-            nodes = [int(n) for n in nodes]
-            for src, dst in zip(nodes[:-1], nodes[1:]):
-                if dst > src:
-                    gammagt[dst,src] = 1
-                elif dst == src:
-                    raise ValueError("Edges are not allowed from " +
-                                     str(src) + " to oneself!")
-                else:
-                    raise ValueError("Edges are not allowed from " +
-                                     str(src) + " to ancestor " +
-                                     str(dst) + " !")
+        gammagt = parse_skeleton(g, M=M)
         return gammagt
 
 
@@ -148,6 +344,7 @@ class MLP(nn.Module):
             else:
                 x = torch.relu(l(x))
         #print(x)
+        
         x = torch.distributions.one_hot_categorical.OneHotCategorical(probs = x).sample()
 
         return x
@@ -273,10 +470,17 @@ class ColorChangingRL(gym.Env):
         self.reset()
 
     def set_graph(self, g):
+        if g in graphs.keys():
+            if int(g[-1]) != self.num_objects:
+                print('ERROR:Env created for ' + str(self.num_objects) + ' objects while graph specified for ' + g[-1] + ' objects')
+                exit()
+            print('INFO: Loading predefined graph for configuration '+str(g))
+            g = graphs[g]
         num_nodes = self.num_objects
         num_edges = np.random.randint(num_nodes, (((num_nodes) * (num_nodes - 1)) // 2) + 1)
         self.adjacency_matrix = random_dag(num_nodes, num_edges, g = g)
         self.adjacency_matrix = torch.from_numpy(self.adjacency_matrix).float()
+        print(self.adjacency_matrix)
         self.generate_masks()
         self.reset()
 

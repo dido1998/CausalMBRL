@@ -181,6 +181,7 @@ def main():
                 env.unwrapped.load_save_information(graph)
             elif args.graph != 'None':
                 env.unwrapped.set_graph(args.graph)
+                
         replay_buffer = generate(env, args)
         if 'ColorChanging' in args.env_id and args.save_graph:
             graph = env.unwrapped.get_save_information()
