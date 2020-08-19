@@ -1,8 +1,7 @@
 #!/bin/bash
 
 echo Running on $HOSTNAME
-
-source activate pytorch
+source activate cswm
 
 num_obj=$1
 name=$2
@@ -10,6 +9,7 @@ encoder=$3
 bs=$4
 cmap=$5
 seed=$6
+loss=$7
 
 data="/home/sarthmit/scratch/C-SWM/Data/Observed/wshapes_observed"
 #data="/home/sarthmit/scratch/C-SWM/Data/Unobserved/wshapes_unobserved"
@@ -19,7 +19,37 @@ save="/home/sarthmit/scratch/C-SWM/Models/Observed/"$name"_"$seed"/"
 #save="/home/sarthmit/scratch/C-SWM/Models/Unobserved/"$name"/"
 #save="/home/sarthmit/scratch/C-SWM/Models/FixedUnobserved/"$name"/"
 
-name=$name"_"$encoder"_"$num_obj"_"$cmap
+name=$name"_"$loss"_"$encoder"_"$num_obj"_"$cmap
 echo $name
 
-python ../train_baselines.py --dataset $data"_"$num_obj"_"$cmap"_train.h5" --encoder $encoder --name $name --embedding-dim 10 --num-objects $num_obj --valid-dataset $data"_"$num_obj"_"$cmap"_valid.h5" --epochs 100 --pretrain-epochs 100 --batch-size $bs --silent --save-folder $save --seed $seed --predict-diff --cswm
+if [[ $loss == "NLL" ]]; then
+	extras=""
+else
+	extras="--contrastive"
+fi
+
+if [[ $name == *"VAE"* ]]; then
+	python ../train_baselines.py --dataset $data"_"$num_obj"_"$cmap"_train.h5" \
+		--encoder $encoder --name $name --embedding-dim-per-object 32 --num-objects $num_obj \
+		--valid-dataset $data"_"$num_obj"_"$cmap"_valid.h5" --epochs 100 \
+		--pretrain-epochs 100 --batch-size $bs --silent --save-folder $save \
+		--seed $seed --predict-diff --vae $extras
+elif [[ $name == *"AE"* ]]; then
+        python ../train_baselines.py --dataset $data"_"$num_obj"_"$cmap"_train.h5" \
+                --encoder $encoder --name $name --embedding-dim-per-object 32 --num-objects $num_obj \
+                --valid-dataset $data"_"$num_obj"_"$cmap"_valid.h5" --epochs 100 \
+                --pretrain-epochs 100 --batch-size $bs --silent --save-folder $save \
+                --seed $seed --predict-diff $extras
+elif [[ $name == *"Modular"* ]]; then
+        python ../train_baselines.py --dataset $data"_"$num_obj"_"$cmap"_train.h5" \
+                --encoder $encoder --name $name --embedding-dim-per-object 32 --num-objects $num_obj \
+                --valid-dataset $data"_"$num_obj"_"$cmap"_valid.h5" --epochs 100 \
+                --pretrain-epochs 100 --batch-size $bs --silent --save-folder $save \
+                --seed $seed --predict-diff --modular $extras
+elif [[ $name == *"GNN"* ]]; then
+        python ../train_baselines.py --dataset $data"_"$num_obj"_"$cmap"_train.h5" \
+                --encoder $encoder --name $name --embedding-dim-per-object 32 --num-objects $num_obj \
+                --valid-dataset $data"_"$num_obj"_"$cmap"_valid.h5" --epochs 100 \
+                --pretrain-epochs 100 --batch-size $bs --silent --save-folder $save \
+                --seed $seed --predict-diff --gnn $extras
+fi
