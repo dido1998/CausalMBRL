@@ -88,8 +88,6 @@ parser.add_argument('--eval-dataset', type=Path,
 parser.add_argument('--num-workers', type=int, default=1,
                     help='Number of data loading workers')
 
-parser.add_argument('--contrastive-loss', type=bool, default=True,
-                    help="whether to use contrastive loss")
 parser.add_argument('--name', type=str, default='none',
                     help='Experiment name.')
 parser.add_argument('--save-folder', type=Path,
