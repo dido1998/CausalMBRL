@@ -187,17 +187,6 @@ def planning_random(env, episode_count):
     print("Standard Deviation: ", np.std(rewards))
     print("Success Rate: ", np.mean(success))
 
-with gym.make(args_eval.env_id) as env:
-    print("Random Planning: ")
-    planning_random(env, num_eval)
-    print()
-
-    print("Best Planning: ")
-    planning_best(env, num_eval)
-    print()
-
-exit()
-
 if 'ColorChanging' in args_eval.env_id:
     graph_location = 'data/ColorChangingRL'
 
