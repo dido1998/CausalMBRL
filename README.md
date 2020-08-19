@@ -7,7 +7,6 @@
 ```
 sh scripts/chem_data.sh num_obj num_color graph max_steps movement
 
-seed: This is an identifier for the graph and will be used in the file name for that graph. You can specify 0,1,2 etc.
 graph: This can be either a name of the graph from the predefined graphs, or you can specify the structure like this: 1-\>2,2-\>3
 max_steps: Always specify 10
 movement: Static: The positions are fixed across all episodes.
