@@ -6,6 +6,7 @@
 ### Chemistry Env
 ```
 sh scripts/chem_data.sh num_obj num_color seed graph max_steps movement
+
 seed: This is an identifier for the graph and will be used in the file name for that graph. You can specify 0,1,2 etc.
 graph: This can be either a name of the graph from the predefined graphs, or you can specify the structure like this: 1-\>2,2-\>3
 max_steps: Always specify 10
@@ -102,7 +103,7 @@ Note: Refer to gen_observed.sh and gen_unobserved.sh to generate data for expts.
 ## Experiments
 
 ### Chemistry
-The experiments can be using the following files:
+The experiments can be run using the following files:
 
 - scripts/ae_chem.sh
 - scripts/vae_chem.sh
@@ -115,6 +116,7 @@ Note that before running the RIM and SCOFF based expts please go into the `modul
 The arguments for all the above files are same as follows:
 ``` 
 sh scripts/<model>_chem.sh num_obj num_color seed contrastive_loss max_steps movement
+
 seed: It is the identifier for the graph always speciffy the same number used while creating the graph.
 contrastive_loss: True or False
 max_steps: Always specify 10.
