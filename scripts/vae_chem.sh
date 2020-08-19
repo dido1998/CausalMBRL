@@ -9,9 +9,17 @@ movement=$6
 save_folder=vae-$num_obj-$num_colors-$max_steps-$movement-$seed-$contrastive_loss
 truth=True
 
-rm -r $save_folder
-mkdir $save_folder
-touch $save_folder/train.log
+rm -r "$save_folder-1"
+rm -r "$save_folder-2"
+rm -r "$save_folder-3"
+
+mkdir "$save_folder-1"
+mkdir "$save_folder-2"
+mkdir "$save_folder-3"
+
+touch "$save_folder-1/train.log"
+touch "$save_folder-2/train.log"
+touch "$save_folder-3/train.log"
 
 if [ $contrastive_loss == $truth ]
 then
