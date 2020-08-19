@@ -122,9 +122,9 @@ movement: Static or Dynamic.
 ```
 Each run produces 3 folders:
 
-- <model>-<num_obj>-<num_colors>-<max_steps>-<movement>-<seed>-<contrastive_loss>-1
-- <model>-<num_obj>-<num_colors>-<max_steps>-<movement>-<seed>-<contrastive_loss>-2
-- <model>-<num_obj>-<num_colors>-<max_steps>-<movement>-<seed>-<contrastive_loss>-3
+-<model>-<num_obj>-<num_colors>-<max_steps>-<movement>-<seed>-<contrastive_loss>-1
+-<model>-<num_obj>-<num_colors>-<max_steps>-<movement>-<seed>-<contrastive_loss>-2
+-<model>-<num_obj>-<num_colors>-<max_steps>-<movement>-<seed>-<contrastive_loss>-3
 
 The 3 different folders are for 3 different seeds(1,2,3) for which the models has been run. Note that this seed and the seed provided for argments to the shell is different.
 
