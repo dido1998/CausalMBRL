@@ -115,9 +115,9 @@ Note that before running the RIM and SCOFF based expts please go into the `modul
 
 The arguments for all the above files are same as follows:
 ``` 
-sh scripts/<model>_chem.sh num_obj num_color seed contrastive_loss max_steps movement
+sh scripts/<model>_chem.sh num_obj num_color graph contrastive_loss max_steps movement
 
-seed: It is the identifier for the graph always speciffy the same number used while creating the graph.
+graph: name of the graph(chain5, full5 etc)
 contrastive_loss: True or False
 max_steps: Always specify 10.
 movement: Static or Dynamic.
