@@ -21,7 +21,7 @@ then
 	--eval-dataset data/ColorChangingRL_$num_obj-$num_colors-$max_steps-$movement-test-$seed.h5 \
 	--embedding-dim-per-object 32 --num-objects $num_obj --action-dim $num_colors  \
 	--valid-dataset data/ColorChangingRL_$num_obj-$num_colors-$max_steps-$movement-valid-$seed.h5 \
-	--save-folder $save_folder_ --batch-size 512 --seed 1 \
+	--save-folder $save_folder_ --batch-size 32 --seed 1 \
 	--epochs 100 --pretrain-epochs 100 --predict-diff --scoff --contrastive | tee -a "$save_folder_/train.log"
 
 	save_folder_="$save_folder-2"
@@ -30,7 +30,7 @@ then
 	--eval-dataset data/ColorChangingRL_$num_obj-$num_colors-$max_steps-$movement-test-$seed.h5 \
 	--embedding-dim-per-object 32 --num-objects $num_obj --action-dim $num_colors  \
 	--valid-dataset data/ColorChangingRL_$num_obj-$num_colors-$max_steps-$movement-valid-$seed.h5 \
-	--save-folder $save_folder_ --batch-size 512 --seed 2 \
+	--save-folder $save_folder_ --batch-size 32 --seed 2 \
 	--epochs 100 --pretrain-epochs 100 --predict-diff --scoff --contrastive | tee -a "$save_folder_/train.log"
 
 	save_folder_="$save_folder-3"
@@ -39,7 +39,7 @@ then
 	--eval-dataset data/ColorChangingRL_$num_obj-$num_colors-$max_steps-$movement-test-$seed.h5 \
 	--embedding-dim-per-object 32 --num-objects $num_obj --action-dim $num_colors  \
 	--valid-dataset data/ColorChangingRL_$num_obj-$num_colors-$max_steps-$movement-valid-$seed.h5 \
-	--save-folder $save_folder_ --batch-size 512 --seed 3 \
+	--save-folder $save_folder_ --batch-size 32 --seed 3 \
 	--epochs 100 --pretrain-epochs 100 --predict-diff --scoff --contrastive | tee -a "$save_folder_/train.log"
 
 else
@@ -49,7 +49,7 @@ else
 	--eval-dataset data/ColorChangingRL_$num_obj-$num_colors-$max_steps-$movement-test-$seed.h5 \
 	--embedding-dim-per-object 32 --num-objects $num_obj --action-dim $num_colors  \
 	--valid-dataset data/ColorChangingRL_$num_obj-$num_colors-$max_steps-$movement-valid-$seed.h5 \
-	--save-folder $save_folder_ --batch-size 512 --seed 1 \
+	--save-folder $save_folder_ --batch-size 32 --seed 1 \
 	--epochs 100 --pretrain-epochs 100 --predict-diff --scoff | tee -a "$save_folder_/train.log"
 
 	save_folder_="$save_folder-2"
