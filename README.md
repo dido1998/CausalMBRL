@@ -5,13 +5,12 @@
 
 ### Chemistry Env
 ```
-sh scripts/chem_data.sh num_obj num_color seed graph max_steps movement
+sh scripts/chem_data.sh num_obj num_color graph max_steps movement
 
-seed: This is an identifier for the graph and will be used in the file name for that graph. You can specify 0,1,2 etc.
 graph: This can be either a name of the graph from the predefined graphs, or you can specify the structure like this: 1-\>2,2-\>3
 max_steps: Always specify 10
-movement: "Static": The positions are fixed across all episodes.
-          "Dynamic": The positions are varying across all episodes. 
+movement: Static: The positions are fixed across all episodes.
+          Dynamic: The positions are varying across all episodes. 
 ```
 The following predefined graphs are available for specification:
 ```
@@ -115,9 +114,9 @@ Note that before running the RIM and SCOFF based expts please go into the `modul
 
 The arguments for all the above files are same as follows:
 ``` 
-sh scripts/<model>_chem.sh num_obj num_color seed contrastive_loss max_steps movement
+sh scripts/<model>_chem.sh num_obj num_color graph contrastive_loss max_steps movement
 
-seed: It is the identifier for the graph always speciffy the same number used while creating the graph.
+graph: name of the graph(chain5, full5 etc)
 contrastive_loss: True or False
 max_steps: Always specify 10.
 movement: Static or Dynamic.
