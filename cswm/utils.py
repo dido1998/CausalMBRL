@@ -478,7 +478,7 @@ def evaluate_lstm(model, loader, *,
             #if hidden_dim == 512:
             hidden = (torch.rand(1, pred_state.size(0), 600).cuda(), torch.rand(1, pred_state.size(0), 600).cuda())
             #else:
-            hidden = model.transition_nets.init_hidden(pred_state.size(0))
+            #hidden = model.transition_nets.init_hidden(pred_state.size(0))
             for i in range(num_steps):
                 pred_state, hidden = model.transition(pred_state, actions[i], hidden)
 
