@@ -155,6 +155,7 @@ model = CausalTransitionModelLSTM(
     rim = args.rim,
     scoff = args.scoff).to(device)
 
+print(model)
 model.apply(utils.weights_init)
 
 def evaluate(model_file, valid_loader, train_encoder = True, train_decoder = True, train_transition = False):
@@ -310,11 +311,11 @@ if args.contrastive:
     dataset = utils.LSTMDataset(
         hdf5_file=args.dataset, action_transform=OneHot(args.num_objects * args.action_dim))
     train_loader = data.DataLoader(
-        dataset, batch_size=32, shuffle=True, num_workers=args.num_workers)
+        dataset, batch_size=5, shuffle=True, num_workers=args.num_workers)
     valid_dataset = utils.LSTMDataset(
         hdf5_file=args.valid_dataset, action_transform=OneHot(args.num_objects * args.action_dim))
     valid_loader = data.DataLoader(
-        valid_dataset, batch_size=32, shuffle=True, num_workers=args.num_workers)
+        valid_dataset, batch_size=5, shuffle=True, num_workers=args.num_workers)
 
     train(args.epochs, model_file, lr=args.lr, train_encoder=True, train_transition=True, train_decoder=False)
 else:
@@ -333,11 +334,11 @@ else:
     dataset = utils.LSTMDataset(
         hdf5_file=args.dataset, action_transform=OneHot(args.num_objects * args.action_dim))
     train_loader = data.DataLoader(
-        dataset, batch_size=32, shuffle=True, num_workers=args.num_workers)
+        dataset, batch_size=5, shuffle=True, num_workers=args.num_workers)
     valid_dataset = utils.LSTMDataset(
         hdf5_file=args.valid_dataset, action_transform=OneHot(args.num_objects * args.action_dim))
     valid_loader = data.DataLoader(
-        valid_dataset, batch_size=32, shuffle=True, num_workers=args.num_workers)
+        valid_dataset, batch_size=5, shuffle=True, num_workers=args.num_workers)
 
     train(args.epochs, model_file, lr=args.transit_lr, train_encoder=False, train_transition=True, train_decoder=False)
     train(args.epochs, finetune_file, lr=args.lr, train_encoder=True, train_decoder=True, train_transition=True)

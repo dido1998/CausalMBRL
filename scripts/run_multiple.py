@@ -1,6 +1,7 @@
 import os
 
-models=["AE", "VAE", "Modular", "GNN"]
+#models=["AE", "VAE", "Modular", "GNN"]
+models=["LSTM", "RIM", "SCOFF"]
 encoders=["medium"]
 #encoders=["small", "medium", "large"]
 losses=["NLL", "Contrastive"]
