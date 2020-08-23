@@ -432,6 +432,7 @@ class ColorChangingRL(gym.Env):
 
         self.objects = OrderedDict()
         # Randomize object position.
+        fixed_object_to_position_mapping = [(0, 0), (0, 4), (4, 0), (4, 4), (2, 2), (1,1), (1, 3), (3, 1)]
         while len(self.objects) < self.num_objects:
             idx = len(self.objects)
             # Re-sample to ensure objects don't fall on same spot.
@@ -439,8 +440,8 @@ class ColorChangingRL(gym.Env):
                        self.valid_pos(self.objects[idx].pos, idx)):
                 self.objects[idx] = Object(
                     pos=Coord(
-                        x=np.random.choice(np.arange(self.width)),
-                        y=np.random.choice(np.arange(self.height)),
+                        x=fixed_object_to_position_mapping[idx][0],
+                        y=fixed_object_to_position_mapping[idx][1],
                     ),
                     color=torch.argmax(self.object_to_color[idx]))
 
