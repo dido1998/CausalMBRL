@@ -10,7 +10,7 @@ import tqdm
 import logging
 
 from cswm import utils
-from cswm.models.modules import RewardPredictor, CausalTransitionModel#, ContrastiveSWM
+from cswm.models.modules import RewardPredictor, CausalTransitionModel
 from cswm.utils import OneHot
 
 import sys
@@ -89,54 +89,34 @@ input_shape = obs[0].size()
 
 print(f"VAE: {args.vae}")
 print(f"Modular: {args.modular}")
-#print(f"Learn Edges: {args.learn_edges}")
 print(f"Encoder: {args.encoder}")
 print(f"Num Objects: {args.num_objects}")
 print(f"Dataset: {args.dataset}")
 
-if args.contrastive:
-    model = ContrastiveSWM(
-        embedding_dim=args.embedding_dim,
-        hidden_dim=args.hidden_dim,
-        action_dim=args.action_dim,
-        input_dims=input_shape,
-        num_objects=args.num_objects,
-        sigma=args.sigma,
-        hinge=args.hinge,
-        ignore_action=args.ignore_action,
-        copy_action=args.copy_action,
-        encoder=args.encoder).to(device)
+model = CausalTransitionModel(
+    embedding_dim_per_object=args.embedding_dim_per_object,
+    hidden_dim=args.hidden_dim,
+    action_dim=args.action_dim,
+    input_dims=input_shape,
+    input_shape=input_shape,
+    modular=args.modular,
+    predict_diff=args.predict_diff,
+    vae=args.vae,
+    num_objects=args.num_objects,
+    encoder=args.encoder,
+    gnn=args.gnn,
+    multiplier=args.multiplier,
+    ignore_action=args.ignore_action,
+    copy_action=args.copy_action).to(device)
 
-    num_enc = sum(p.numel() for p in model.encoder_parameters())
-    num_tr = sum(p.numel() for p in model.transition_parameters())
-    print(f'Number of parameters in Encoder: {num_enc}')
-    print(f'Number of parameters in Transition: {num_tr}')
-    print(f'Number of parameters: {num_enc + num_tr}')
-else:
-    model = CausalTransitionModel(
-        embedding_dim_per_object=args.embedding_dim_per_object,
-        hidden_dim=args.hidden_dim,
-        action_dim=args.action_dim,
-        input_dims=input_shape,
-        input_shape=input_shape,
-        modular=args.modular,
-        predict_diff=args.predict_diff,
-        vae=args.vae,
-        num_objects=args.num_objects,
-        encoder=args.encoder,
-        gnn=args.gnn,
-        multiplier=args.multiplier,
-        ignore_action=args.ignore_action,
-        copy_action=args.copy_action).to(device)
+num_enc = sum(p.numel() for p in model.encoder_parameters())
+num_dec = sum(p.numel() for p in model.decoder_parameters())
+num_tr = sum(p.numel() for p in model.transition_parameters())
 
-    num_enc = sum(p.numel() for p in model.encoder_parameters())
-    num_dec = sum(p.numel() for p in model.decoder_parameters())
-    num_tr = sum(p.numel() for p in model.transition_parameters())
-
-    print(f'Number of parameters in Encoder: {num_enc}')
-    print(f'Number of parameters in Decoder: {num_dec}')
-    print(f'Number of parameters in Transition: {num_tr}')
-    print(f'Number of parameters: {num_enc+num_dec+num_tr}')
+print(f'Number of parameters in Encoder: {num_enc}')
+print(f'Number of parameters in Decoder: {num_dec}')
+print(f'Number of parameters in Transition: {num_tr}')
+print(f'Number of parameters: {num_enc+num_dec+num_tr}')
 
 if not args_eval.random:
     model.load_state_dict(torch.load(model_file))

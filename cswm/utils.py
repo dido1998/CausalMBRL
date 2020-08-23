@@ -16,6 +16,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+from cswm.models.losses import *
 
 EPS = 1e-17
 
@@ -345,8 +346,6 @@ def save_img(img, name, pad_value=None):
 def evaluate(model, loader, *,
              device, batch_size, num_steps, silent=False, 
              name="Default", save_folder=None, contrastive=False):
-
-    criterion = nn.BCEWithLogitsLoss(reduction='sum')
     # topk = [1, 5, 10]
     name = str(name).split('/')[-1]
     topk = [1]
@@ -365,10 +364,6 @@ def evaluate(model, loader, *,
                           for tensor in data_batch]
             observations, actions = data_batch
 
-            #if observations[0].size(0) != batch_size:
-            #    print('something wrong')
-            #    continue
-
             obs = observations[0]
             next_obs = observations[-1]
 
@@ -381,21 +376,7 @@ def evaluate(model, loader, *,
             
             if not contrastive:
                 rec_obs = model.decoder(pred_state)
-
-            if False and batch_idx == 0:
-                if not os.path.exists(str(save_folder) + f'/Figures/'):
-                    os.mkdir(str(save_folder) + f'/Figures/')
-                if not os.path.exists(str(save_folder) + f'/Figures/{name}'):
-                    os.mkdir(str(save_folder) + f'/Figures/{name}')
-                
-                save_image(obs[:16], str(save_folder) + f'/Figures/{name}/true_original_{num_steps}.png', pad_value=1.0, nrow=4)
-                save_image(next_obs[:16], str(save_folder) +  f'/Figures/{name}/true_step_{num_steps}.png', pad_value=1.0, nrow=4)
-                if not cswm:
-                    save_image(rec_orig[:16], str(save_folder) +  f'/Figures/{name}/rec_orig_{num_steps}.png', pad_value=1.0, nrow=4)
-                    save_image(rec_obs[:16], str(save_folder) +  f'/Figures/{name}/rec_step_{num_steps}.png', pad_value=1.0, nrow=4)
-            
-            if not contrastive:
-                rec += criterion(rec_obs, next_obs).item()
+                rec += image_loss(rec_obs, next_obs).item()
 
             pred_states.append(pred_state.cpu())
             next_states.append(next_state.cpu())
@@ -449,7 +430,7 @@ def evaluate(model, loader, *,
     return hits_at, rr_sum, rec, num_samples
 
 def evaluate_lstm(model, loader, *,
-             device, batch_size, num_steps, silent=False, name="Default", save_folder = None, hidden_dim = 512):
+             device, batch_size, num_steps, silent=False, name="Default", save_folder = None, hidden_dim = 600, contrastive=False):
     # topk = [1, 5, 10]
     name = str(name).split('/')[-1]
     topk = [1]
@@ -476,28 +457,15 @@ def evaluate_lstm(model, loader, *,
 
             pred_state = state
             #if hidden_dim == 512:
-            hidden = (torch.rand(1, pred_state.size(0), 600).cuda(), torch.rand(1, pred_state.size(0), 600).cuda())
+            hidden = (torch.zeros(1, pred_state.size(0), 600).cuda(), torch.zeros(1, pred_state.size(0), 600).cuda())
             #else:
             #hidden = model.transition_nets.init_hidden(pred_state.size(0))
             for i in range(num_steps):
                 pred_state, hidden = model.transition(pred_state, actions[i], hidden)
 
-            rec_obs = torch.sigmoid(model.decoder(pred_state))
-            rec_orig = torch.sigmoid(model.decoder(state))
-
-            if batch_idx == 0:
-                if not os.path.exists(str(save_folder) + f'/Figures/'):
-                    os.mkdir(str(save_folder) + f'/Figures/')
-                if not os.path.exists(str(save_folder) + f'/Figures/{name}'):
-                    os.mkdir(str(save_folder) + f'/Figures/{name}')
-                
-                save_image(obs[:16], str(save_folder) + f'/Figures/{name}/true_original_{num_steps}.png', pad_value=1.0, nrow=4)
-                save_image(next_obs[:16], str(save_folder) +  f'/Figures/{name}/true_step_{num_steps}.png', pad_value=1.0, nrow=4)
-                save_image(rec_orig[:16], str(save_folder) +  f'/Figures/{name}/rec_orig_{num_steps}.png', pad_value=1.0, nrow=4)
-                save_image(rec_obs[:16], str(save_folder) +  f'/Figures/{name}/rec_step_{num_steps}.png', pad_value=1.0, nrow=4)
-
-            rec += F.binary_cross_entropy(
-                    rec_obs, next_obs, reduction='sum').item()
+            if not contrastive:
+                rec_obs = model.decoder(pred_state)
+                rec += image_loss(rec_obs, next_obs).item()
 
             pred_states.append(pred_state.cpu())
             next_states.append(next_state.cpu())
@@ -587,7 +555,7 @@ def eval_steps(model, steps_array, *,
     print(string)
 
 def eval_steps_lstm(model, steps_array, *,
-               filename, batch_size, device, save_folder, name="Default", action_dim = 5, hidden_dim = 512):
+               filename, batch_size, device, save_folder, name="Default", action_dim = 5, hidden_dim = 600, contrastive=False):
     string = ""
     for steps in steps_array:
         print("Loading data...")

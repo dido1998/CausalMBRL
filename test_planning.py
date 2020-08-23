@@ -8,7 +8,7 @@ import gym
 import torch
 import torch.nn.functional as F
 
-from cswm.models.modules import CausalTransitionModel, RewardPredictor#, ContrastiveSWM, , ContrastiveSWMFinal
+from cswm.models.modules import CausalTransitionModel, RewardPredictor
 
 from cswm import utils
 from cswm.utils import OneHot
