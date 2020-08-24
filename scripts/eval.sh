@@ -12,8 +12,7 @@ loss=$6
 mode=$7
 emb=$8
 
-dir="Models"
-#dir="Models_"$emb
+dir="Models_"$emb
 
 data="/home/sarthmit/scratch/C-SWM/Data/Observed/wshapes_observed"
 #data="/home/sarthmit/scratch/C-SWM/Data/Unobserved/wshapes_unobserved"

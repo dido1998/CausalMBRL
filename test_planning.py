@@ -25,8 +25,12 @@ parser.add_argument('--random', action='store_true', default=False,
 parser.add_argument('--env-id', type = str)
 parser.add_argument('--num-eval', type=int, default=1000)
 parser.add_argument('--num-steps', type=int, default=1)
+parser.add_argument('--save', type=str, default='Experiments')
+parser.add_argument('--recurrent', action='store_true')
 
 args_eval = parser.parse_args()
+
+string=""
 
 num_steps = args_eval.num_steps
 num_eval = args_eval.num_eval
@@ -99,6 +103,7 @@ def get_best_model_action_transition(state, target_state, action_space, model, r
     return best_action, state_out
 
 def planning_model(env, model, reward_model, episode_count):
+    global string
     action_space = env.action_space
     rewards = []
 
@@ -116,11 +121,18 @@ def planning_model(env, model, reward_model, episode_count):
     rewards = np.array(rewards)
     success = get_success(rewards)
 
-    print("Mean: ", np.mean(rewards))
-    print("Standard Deviation: ", np.std(rewards))
-    print("Success Rate: ", np.mean(success))
+    mean_rewards = str(np.around(np.mean(rewards), decimals=2))
+    std_rewards = str(np.around(np.std(rewards), decimals=2))
+    mean_success = str(np.around(np.mean(success), decimals=2))
+
+    print("Mean: ", mean_rewards)
+    print("Standard Deviation: ", std_rewards)
+    print("Success Rate: ", mean_success)
+
+    string += mean_rewards + ' | ' + std_rewards + ' | ' + mean_success + ' | '
 
 def planning_model_transition(env, model, reward_model, episode_count):
+    global string
     action_space = env.action_space
     rewards = []
 
@@ -143,9 +155,15 @@ def planning_model_transition(env, model, reward_model, episode_count):
     rewards = np.array(rewards)
     success = get_success(rewards)
 
-    print("Mean: ", np.mean(rewards))
-    print("Standard Deviation: ", np.std(rewards))
-    print("Success Rate: ", np.mean(success))
+    mean_rewards = str(np.around(np.mean(rewards), decimals=2))
+    std_rewards = str(np.around(np.std(rewards), decimals=2))
+    mean_success = str(np.around(np.mean(success), decimals=2))
+
+    print("Mean: ", mean_rewards)
+    print("Standard Deviation: ", std_rewards)
+    print("Success Rate: ", mean_success)
+
+    string += mean_rewards + ' | ' + std_rewards + ' | ' + mean_success + ' | '
 
 def planning_best(env, episode_count):
     action_space = env.action_space
@@ -220,7 +238,6 @@ input_shape = [3,50,50]
 print(input_shape)
 print("VAE: ", args.vae)
 print("Modular: ", args.modular)
-#print("Learn Edges: ", args.learn_edges)
 print("Encoder: ", args.encoder)
 print("Num Objects: ", args.num_objects)
 print("Dataset: ", args.dataset)
@@ -246,6 +263,10 @@ num_dec = sum(p.numel() for p in model.decoder_parameters())
 num_tr = sum(p.numel() for p in model.transition_parameters())
 
 Reward_Model = RewardPredictor(args.embedding_dim_per_object * args.num_objects).cuda()
+
+model_name = '/'.join(str(args_eval.save_folder).split('/')[-2:])
+
+string += model_name + ' : '
 
 with gym.make(args_eval.env_id) as env:
     if 'ColorChanging' in args_eval.env_id:
@@ -292,3 +313,7 @@ with gym.make(args_eval.env_id) as env:
     planning_model(env, model, Reward_Model, num_eval)
     planning_model_transition(env, model, Reward_Model, num_eval)
     print()
+
+string+='\n'
+with open(args_eval.save+'/eval_rl_'+str(num_steps)+'.txt', 'a') as f:
+    f.write(string)

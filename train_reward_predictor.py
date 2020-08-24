@@ -61,7 +61,7 @@ if args.silent:
     handlers.append(logging.StreamHandler(sys.stdout))
 logging.basicConfig(level=logging.INFO, format='%(message)s', handlers=handlers)
 logger = logging.getLogger()
-#print = logger.info
+print = logger.info
 
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)

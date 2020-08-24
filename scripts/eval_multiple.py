@@ -8,7 +8,7 @@ losses=["NLL", "Contrastive"]
 modes=["test-v0"]
 #modes=["test", "test-v0", "test-v1", "test-v2", "test-v3", "ZeroShotShape", "ZeroShot"]
 
-embs=[4]#, 32]
+embs=[32]
 cmap="Blues"
 #cmap="Sets"
 
