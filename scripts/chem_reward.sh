@@ -10,6 +10,8 @@ model=$7
 save_folder=models_without_seeds/$model-$num_obj-$num_colors-$max_steps-$movement-$seed-$contrastive_loss
 truth=True
 
+echo "$save_folder"
+
 rm -r "$save_folder-1"
 rm -r "$save_folder-2"
 rm -r "$save_folder-3"
