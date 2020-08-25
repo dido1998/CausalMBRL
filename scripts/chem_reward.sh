@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source ../../../tensor2tensor/bin/activate
+
 num_obj=$1
 num_colors=$2
 seed=$3
@@ -26,15 +28,15 @@ touch "$save_folder-3/train_rl.log"
 
 save_folder_="$save_folder-1"
 
-python train_reward_predictor.py --save_folder "$save_folder_" --random
-python train_reward_predictor.py --save_folder "$save_folder_" --finetune
-python test_planning.py --save_folder "$save_folder_" --random --env-id ColorChangingRL-$num_obj-$num_colors-$movement-$max_steps-v0 --save "$save_folder_" --num-steps 1
-python test_planning.py --save_folder "$save_folder_" --random --env-id ColorChangingRL-$num_obj-$num_colors-$movement-$max_steps-v0 --save "$save_folder_" --num-steps 5
-python test_planning.py --save_folder "$save_folder_" --random --env-id ColorChangingRL-$num_obj-$num_colors-$movement-$max_steps-v0 --save "$save_folder_" --num-steps 10
+python train_reward_predictor.py --save-folder "$save_folder_" --random
+python train_reward_predictor.py --save-folder "$save_folder_" --finetune
+python test_planning.py --save-folder "$save_folder_" --random --env-id ColorChangingRL-$num_obj-$num_colors-$movement-$max_steps-v0 --save "$save_folder_" --num-steps 1
+python test_planning.py --save-folder "$save_folder_" --random --env-id ColorChangingRL-$num_obj-$num_colors-$movement-$max_steps-v0 --save "$save_folder_" --num-steps 5
+python test_planning.py --save-folder "$save_folder_" --random --env-id ColorChangingRL-$num_obj-$num_colors-$movement-$max_steps-v0 --save "$save_folder_" --num-steps 10
 
-python test_planning.py --save_folder "$save_folder_" --finetune --env-id ColorChangingRL-$num_obj-$num_colors-$movement-$max_steps-v0 --save "$save_folder_" --num-steps 1
-python test_planning.py --save_folder "$save_folder_" --finetune --env-id ColorChangingRL-$num_obj-$num_colors-$movement-$max_steps-v0 --save "$save_folder_" --num-steps 5
-python test_planning.py --save_folder "$save_folder_" --finetune --env-id ColorChangingRL-$num_obj-$num_colors-$movement-$max_steps-v0 --save "$save_folder_" --num-steps 10
+python test_planning.py --save-folder "$save_folder_" --finetune --env-id ColorChangingRL-$num_obj-$num_colors-$movement-$max_steps-v0 --save "$save_folder_" --num-steps 1
+python test_planning.py --save-folder "$save_folder_" --finetune --env-id ColorChangingRL-$num_obj-$num_colors-$movement-$max_steps-v0 --save "$save_folder_" --num-steps 5
+python test_planning.py --save-folder "$save_folder_" --finetune --env-id ColorChangingRL-$num_obj-$num_colors-$movement-$max_steps-v0 --save "$save_folder_" --num-steps 10
 
 
 save_folder_="$save_folder-2"
