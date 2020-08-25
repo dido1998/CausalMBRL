@@ -14,14 +14,6 @@ truth=True
 
 echo "$save_folder"
 
-rm -r "$save_folder-1"
-rm -r "$save_folder-2"
-rm -r "$save_folder-3"
-
-mkdir "$save_folder-1"
-mkdir "$save_folder-2"
-mkdir "$save_folder-3"
-
 touch "$save_folder-1/train_rl.log"
 touch "$save_folder-2/train_rl.log"
 touch "$save_folder-3/train_rl.log"
