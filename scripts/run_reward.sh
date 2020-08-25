@@ -10,8 +10,9 @@ bs=$4
 cmap=$5
 run=$6
 loss=$7
+emb=$8
 
-save="/home/sarthmit/scratch/C-SWM/Models/Observed/"$name"_"$run"/"
+save="/home/sarthmit/scratch/C-SWM/Models_"$emb"/Observed/"$name"_"$run"/"
 
 name=$name"_"$loss"_"$encoder"_"$num_obj"_"$cmap
 echo $name

@@ -6,11 +6,13 @@ import pickle
 import tqdm
 import sys
 from pathlib import Path
+import random
 
 import numpy as np
 import logging
 import re
 
+import torch
 from itertools import chain
 from torch.utils import data
 import torch.nn as nn
@@ -99,6 +101,16 @@ parser.add_argument('--contrastive', action = 'store_true', help='use contrastiv
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 
+def set_seed(seed):
+    """Set seed"""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if args.cuda:
+        torch.cuda.manual_seed_all(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    torch.backends.cudnn.deterministic = True
+
 # Set experiment name
 
 now = datetime.datetime.now()
@@ -124,10 +136,7 @@ log_file = save_folder / 'log.txt'
 
 # Set seeds
 
-np.random.seed(args.seed)
-torch.manual_seed(args.seed)
-if args.cuda:
-    torch.cuda.manual_seed(args.seed)
+set_seed(args.seed)
 
 # Set logging
 

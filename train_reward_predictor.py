@@ -9,6 +9,8 @@ import numpy as np
 import tqdm
 import logging
 
+import random
+import torch
 from cswm import utils
 from cswm.models.modules import RewardPredictor, CausalTransitionModel
 from cswm.utils import OneHot
@@ -38,6 +40,15 @@ parser.add_argument('--random', action='store_true', default=False)
 parser.add_argument('--epochs', type=int, default=50)
 args_eval = parser.parse_args()
 
+def set_seed(seed):
+    """Set seed"""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if args.cuda:
+        torch.cuda.manual_seed_all(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    torch.backends.cudnn.deterministic = True
 
 meta_file = args_eval.save_folder / 'metadata.pkl'
 if args_eval.finetune:
@@ -63,10 +74,7 @@ logging.basicConfig(level=logging.INFO, format='%(message)s', handlers=handlers)
 logger = logging.getLogger()
 print = logger.info
 
-np.random.seed(args.seed)
-torch.manual_seed(args.seed)
-if args.cuda:
-    torch.cuda.manual_seed(args.seed)
+set_seed(args.seed)
 
 device = torch.device('cuda' if args.cuda else 'cpu')
 
