@@ -13,6 +13,7 @@ from . import (
 
 from modularity import RIM, SCOFF
 
+
 class CausalTransitionModel(nn.Module):
     """Main module for a Causal transition model.
     Args:
@@ -25,7 +26,7 @@ class CausalTransitionModel(nn.Module):
     def __init__(self, embedding_dim_per_object, input_dims, hidden_dim, 
                  action_dim, num_objects, input_shape=[3, 50, 50],
                  predict_diff=True, encoder='large', modular=False, 
-                 vae=False, gnn=False, multiplier=1, ignore_action=False,
+                 vae=False, gnn=False, learn_edges = False, num_graphs = 10, multiplier=1, ignore_action=False,
                  copy_action=False):
         super(CausalTransitionModel, self).__init__()
 
@@ -37,8 +38,17 @@ class CausalTransitionModel(nn.Module):
         self.predict_diff = predict_diff
         self.vae = vae
         self.gnn = gnn
+        self.num_graphs = num_graphs
+        self.learn_edges = learn_edges
         self.ignore_action = ignore_action
         self.copy_action = copy_action
+
+        # gamma is structural parameter for causal edges
+        gamma = torch.zeros(self.num_objects, self.num_objects)
+        adj_mask = torch.eye(
+                self.num_objects, self.num_objects).byte()
+        gamma.masked_fill_(adj_mask, (float("-inf")))
+        self.register_parameter("gamma", nn.Parameter(gamma))
 
         num_channels = input_dims[0]
         width_height = input_dims[1:]
@@ -157,6 +167,90 @@ class CausalTransitionModel(nn.Module):
     def decoder_parameters(self):
         return self.decoder.parameters()
 
+    def structural_parameters(self):
+        return iter([self.gamma])
+
+    def func_parameters(self):
+        s = set(self.structural_parameters())
+        return (p for p in super().parameters() if p not in s)
+
+    def graph_sample(self, batch_size):
+        # need to sample a batch
+        gammaexp_batch = []
+        if self.learn_edges:
+            for batch_itr in range(batch_size):
+                with torch.no_grad():
+                    gammaexp = self.gamma.sigmoid()
+                    gammaexp = torch.empty_like(gammaexp).uniform_().lt_(gammaexp)
+                    gammaexp += torch.eye(self.num_objects).cuda()
+                    gammaexp_batch.append(gammaexp)
+            return torch.stack(gammaexp_batch).cuda()
+        else:
+            gammaexp = torch.ones([self.num_objects,self.num_objects])
+            #gammaexp.diagonal().ones_()
+            #gammaexp = torch.eye(self.num_objects)
+            gammaexp = gammaexp.unsqueeze(0)
+            gammaexp = gammaexp.repeat(batch_size, 1, 1)
+            return gammaexp.cuda()
+
+    def causal_model(self, state, action):
+        # iterate through all M MLPs
+        # if no learned edges, then no need to learn gamma
+
+        gamma_itr = 1
+        if self.learn_edges:
+            gamma_itr = self.num_graphs
+        
+        gammaexp = self.graph_sample(gamma_itr)
+        gammagrads = []
+        loss = []
+        gamma_losses = []
+        # TODO: if not learning edges: then only iterate once!
+        pred_next_state_ = []
+
+        for gamma_i in range(gamma_itr):
+            pred_next_state = []
+            for i in range(self.num_objects):
+                #print(gammaexp[gamma_i,:,i].view(1, -1, 1).size())
+                #print(state.size())
+                ins = gammaexp[gamma_i,:,i].view(1, -1, 1) * state#.view(state.size(0), self.num_objects, -1)
+                ins = ins.reshape(ins.shape[0], -1)
+                #print(ins.shape)
+                #ins = state.reshape(state.shape[0], -1)
+                pred_ = self.transition_nets[i](ins, action)
+                #print('transition;' + str(pred_.size()))
+                pred_next_state.append(pred_)
+
+            pred_next_state = torch.stack(pred_next_state)
+            pred_next_state = pred_next_state.permute(1, 0, 2)
+            
+            #print(pred_next_state.size())
+
+            if self.predict_diff:
+                pred_next_state += state
+            pred_next_state_.append(pred_next_state)
+
+            #if next_state is not None:
+            #    mse_loss = self.mse_loss(pred_next_state, next_state)
+            #    mse_loss = torch.stack(tuple(mse_loss.mean(-1).mean(0)))
+            #    loss.append(mse_loss)
+
+            #if self.learn_edges:
+            #   gammagrads.append(self.gamma.sigmoid() - gammaexp[gamma_i])
+
+        #if next_state is None:
+        #    loss = None
+        #else:
+        #    loss = torch.stack(loss)
+        #dRdgamma = torch.zeros([self.num_objects, self.num_objects])
+
+        #if self.learn_edges and next_state is not None:
+        #    gammagrads = torch.stack(gammagrads)
+        #    norm_loss = loss.softmax(0)
+        #    dRdgamma = torch.einsum("kij,ki->ij", gammagrads, norm_loss)
+
+        return pred_next_state, pred_next_state_, gammaexp
+
     def encode(self, obs):
         enc = self.encoder(obs)
         if self.vae:
@@ -185,6 +279,11 @@ class CausalTransitionModel(nn.Module):
         return pred_next_state
 
     def transition(self, state, action):
+        if self.learn_edges:
+            pred_next_state, pred_next_states, gamma_exp = self.causal_model(state, action)
+
+            return pred_next_state, pred_next_states, gamma_exp
+
         if self.modular:
             pred_next_state = self.modular_transition(
                 state, action)

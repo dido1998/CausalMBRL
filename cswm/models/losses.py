@@ -6,6 +6,8 @@ import numpy as np
 im_criterion = nn.BCEWithLogitsLoss(reduction='sum')
 transition_criterion = nn.MSELoss(reduction='sum')
 
+causal_criterion = nn.MSELoss(reduction='none')
+
 def energy(state, action, next_state, pred_next_state=None, no_trans=False,
             sigma=0.5):
     norm = 0.5 / (sigma ** 2)
@@ -51,3 +53,19 @@ def kl_loss(mu, logvar):
 
 def transition_loss(pred_state, state):
     return transition_criterion(pred_state, state)
+
+def causal_loss(pred_states, state, gammaexp, gamma):
+    loss = []
+    gammagrads = []
+    for i, p in enumerate(pred_states):
+        mse_loss = causal_criterion(p, state)
+        mse_loss = torch.stack(tuple(mse_loss.mean(-1).mean(0)))
+        loss.append(mse_loss)
+        gammagrads.append(gamma.sigmoid() - gammaexp[i])
+    loss = torch.stack(loss)
+    dRdgamma = torch.zeros(gamma.size()).to(gamma.device)
+    gammagrads = torch.stack(gammagrads)
+    norm_loss = loss.softmax(0)
+    dRdgamma = torch.einsum("kij,ki->ij", gammagrads, norm_loss)
+    return loss.mean(), dRdgamma
+

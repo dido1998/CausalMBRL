@@ -51,12 +51,14 @@ parser.add_argument('--modular', action='store_true',
                     help='Is the learned model modular?')
 parser.add_argument('--vae', action='store_true',
                     help='Is the learned encoder decoder model a VAE model?')
+parser.add_argument('--learn-edges', action='store_true')
 parser.add_argument('--predict-diff', action='store_true',
                     help='Do we predict the difference of current and next state?')
 parser.add_argument('--hidden-dim', type=int, default=512,
                     help='Number of hidden units in transition MLP.')
 parser.add_argument('--embedding-dim-per-object', type=int, default=5,
                     help='Dimensionality of embedding.')
+parser.add_argument('--num-graphs', type = int, default = 10)
 parser.add_argument('--action-dim', type=int, default=5,
                     help='Dimensionality of action space.')
 parser.add_argument('--num-objects', type=int, default=5,
@@ -177,8 +179,10 @@ model = CausalTransitionModel(
     input_dims=input_shape,
     input_shape=input_shape,
     modular=args.modular,
+    learn_edges = args.learn_edges,
     predict_diff=args.predict_diff,
     vae=args.vae,
+    num_graphs = args.num_graphs,
     num_objects=args.num_objects,
     encoder=args.encoder,
     gnn=args.gnn,
@@ -210,7 +214,10 @@ def evaluate(model_file, valid_loader, train_encoder = True, train_decoder = Tru
 
             state, mean_var = model.encode(obs)
             next_state, next_mean_var = model.encode(next_obs)
-            pred_state = model.transition(state, action)
+            if args.learn_edges:
+                pred_state, pred_states, gamma_exp = model.transition(state, action)
+            else:
+                pred_state = model.transition(state, action)
 
             if args.contrastive:
                 loss = contrastive_loss(state, action, next_state, pred_state,
@@ -229,7 +236,11 @@ def evaluate(model_file, valid_loader, train_encoder = True, train_decoder = Tru
                             loss += kl_loss(next_mean_var[0], next_mean_var[1])
                 
                 if train_transition:
-                    loss += transition_loss(pred_state, next_state)
+                    if args.learn_edges:
+                        loss_, dRdgamma = causal_loss(pred_states, next_state, gamma_exp, model.gamma)
+                        loss += loss_
+                    else:
+                        loss += transition_loss(pred_state, next_state)
 
                 loss /= obs.size(0)
 
@@ -250,6 +261,9 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
         parameters = chain(parameters, model.transition_parameters())
 
     optimizer = torch.optim.Adam(parameters, lr = lr)
+    struct_optimizer = torch.optim.Adam(
+        model.structural_parameters(),
+        lr=args.lr)
 
     print('Starting model training...')
     best_loss = 1e9
@@ -270,7 +284,10 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
 
             state, mean_var = model.encode(obs)
             next_state, next_mean_var = model.encode(next_obs)
-            pred_state = model.transition(state, action)
+            if args.learn_edges:
+                pred_state, pred_states, gamma_exp = model.transition(state, action)
+            else:
+                pred_state = model.transition(state, action)
 
             if args.contrastive:
                 loss = contrastive_loss(state, action, next_state, pred_state,
@@ -289,12 +306,30 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
                             loss += kl_loss(next_mean_var[0], next_mean_var[1])
                 
                 if train_transition:
-                    loss += transition_loss(pred_state, next_state)
+                    if args.learn_edges:
+                        loss_, dRdgamma = causal_loss(pred_states, next_state, gamma_exp, model.gamma)
+                        loss += loss_
+                    else:
+                        loss += transition_loss(pred_state, next_state)
 
                 loss /= obs.size(0)
 
+
             loss.backward()
+            
+            
             train_loss += loss.item()
+
+            if train_transition and args.learn_edges:
+                if (batch_idx // args.update_interval) % 2 ==0:
+                    # udpate functional parameters only
+                    struct_optimizer.zero_grad()
+                else:
+                    optimizer.zero_grad()
+                    # manually define grad for gamma params
+                    model.gamma.grad = torch.zeros_like(model.gamma)
+                    model.gamma.grad.copy_(dRdgamma)
+                    struct_optimizer.step()
 
             optimizer.step()
 
