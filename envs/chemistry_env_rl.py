@@ -343,7 +343,7 @@ class MLP(nn.Module):
                 x = torch.softmax(l(x), dim = 1)
             else:
                 x = torch.relu(l(x))
-        print(x)
+        #print(x)
         
         x = torch.distributions.one_hot_categorical.OneHotCategorical(probs = x).sample()
 
