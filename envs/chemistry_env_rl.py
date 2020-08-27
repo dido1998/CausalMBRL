@@ -330,7 +330,7 @@ class MLP(nn.Module):
         self.layers = []
         for i in range(1, len(dims)):
             self.layers.append(nn.Linear(dims[i-1], dims[i]))
-            torch.nn.init.uniform_(self.layers[-1].weight.data, -2.5, +2.5)
+            torch.nn.init.uniform_(self.layers[-1].weight.data, -2.0, +2.0)
             torch.nn.init.uniform_(self.layers[-1].bias.data, -3.5, +3.5)
         self.layers = nn.ModuleList(self.layers)
 
@@ -343,7 +343,7 @@ class MLP(nn.Module):
                 x = torch.softmax(l(x), dim = 1)
             else:
                 x = torch.relu(l(x))
-        #print(x)
+        print(x)
         
         x = torch.distributions.one_hot_categorical.OneHotCategorical(probs = x).sample()
 
