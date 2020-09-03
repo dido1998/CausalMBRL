@@ -33,6 +33,10 @@ parser.add_argument('--epochs', type=int, default=100,
                     help='Number of training epochs.')
 parser.add_argument('--pretrain-epochs', type=int, default=100,
                     help='Number of pretraining epochs.')
+parser.add_argument('--finetune-epochs', type=int, default=100,
+                    help='Number of finetune epochs.')
+parser.add_argument('--slr', type=float, default=1e-2,
+                    help='Structural learning rate.')
 parser.add_argument('--lr', type=float, default=5e-4,
                     help='Learning rate.')
 parser.add_argument('--transit-lr', type=float, default=5e-4,
@@ -42,13 +46,15 @@ parser.add_argument('--update-interval', type=int, default=10,
 parser.add_argument('--encoder', type=str, default='small',
                     help='Object extractor CNN size (e.g., `small`).')
 parser.add_argument('--multiplier', type=int, default=1)
-
+parser.add_argument('--lsparse', type=float, default=0.01)
 parser.add_argument('--sigma', type=float, default=0.5,
                     help='Energy scale.')
 parser.add_argument('--hinge', type=float, default=1.,
                     help='Hinge threshold parameter.')
 parser.add_argument('--modular', action='store_true',
                     help='Is the learned model modular?')
+parser.add_argument('--causal', action='store_true',
+                    help='Is the learned model causal?')
 parser.add_argument('--vae', action='store_true',
                     help='Is the learned encoder decoder model a VAE model?')
 parser.add_argument('--learn-edges', action='store_true')
@@ -79,7 +85,9 @@ parser.add_argument('--silent', action='store_true',
                     help='When selected, the progress bar is not shown')
 
 # Dataset
-
+parser.add_argument('--graph', type=Path,
+                    default=Path('data/ColorChangingRL_3-3-10-Static-train-graph-chain3'),
+                    help='Path to graph.')
 parser.add_argument('--dataset', type=Path,
                     default=Path('data/weighted_shapes_train.h5'),
                     help='Path to replay buffer.')
@@ -139,6 +147,7 @@ log_file = save_folder / 'log.txt'
 # Set seeds
 
 set_seed(args.seed)
+sigmoid = nn.Sigmoid()
 
 # Set logging
 
@@ -155,7 +164,7 @@ with open(meta_file, "wb") as f:
 device = torch.device('cuda' if args.cuda else 'cpu')
 
 # Load datasets
-
+graph = torch.load(args.graph)['graph']
 dataset = utils.StateTransitionsDataset(
     hdf5_file=args.dataset, action_transform=OneHot(args.num_objects * args.action_dim))
 valid_dataset = utils.StateTransitionsDataset(
@@ -171,6 +180,7 @@ obs = next(iter(train_loader))[0]
 input_shape = obs[0].size()
 
 # Initialize Model
+#learn_edges = args.learn_edges or args.causal
 
 model = CausalTransitionModel(
     embedding_dim_per_object=args.embedding_dim_per_object,
@@ -180,12 +190,14 @@ model = CausalTransitionModel(
     input_shape=input_shape,
     modular=args.modular,
     learn_edges = args.learn_edges,
+    causal = args.causal,
     predict_diff=args.predict_diff,
     vae=args.vae,
     num_graphs = args.num_graphs,
     num_objects=args.num_objects,
     encoder=args.encoder,
     gnn=args.gnn,
+    graph=graph,
     multiplier=args.multiplier,
     ignore_action=args.ignore_action,
     copy_action=args.copy_action).to(device)
@@ -200,6 +212,14 @@ print(f'Number of parameters in Transition: {num_tr}')
 print(f'Number of parameters: {num_enc+num_dec+num_tr}')
 
 model.apply(utils.weights_init)
+
+def eval_all_loss():
+    if args.eval_dataset is not None:
+        utils.eval_steps(
+                model, [1, 5, 10],
+                filename=args.eval_dataset, batch_size=args.batch_size,
+                save_folder = save_folder, device=device, action_dim = args.action_dim, contrastive = args.contrastive)
+
 
 def evaluate(model_file, valid_loader, train_encoder = True, train_decoder = True, train_transition = False):
     model.eval()
@@ -263,7 +283,7 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
     optimizer = torch.optim.Adam(parameters, lr = lr)
     struct_optimizer = torch.optim.Adam(
         model.structural_parameters(),
-        lr=args.lr)
+        lr=args.slr)
 
     print('Starting model training...')
     best_loss = 1e9
@@ -288,7 +308,6 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
                 pred_state, pred_states, gamma_exp = model.transition(state, action)
             else:
                 pred_state = model.transition(state, action)
-
             if args.contrastive:
                 loss = contrastive_loss(state, action, next_state, pred_state,
                                         hinge=args.hinge, sigma=args.sigma)
@@ -308,7 +327,8 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
                 if train_transition:
                     if args.learn_edges:
                         loss_, dRdgamma = causal_loss(pred_states, next_state, gamma_exp, model.gamma)
-                        loss += loss_
+                        l1_loss = sigmoid(model.gamma).sum()
+                        loss += loss_ + args.lsparse * l1_loss
                     else:
                         loss += transition_loss(pred_state, next_state)
 
@@ -340,6 +360,8 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
                         epoch, (batch_idx+1),
                         len(train_loader.dataset),
                         loss.item()))
+                if train_transition and args.learn_edges:
+                    print(sigmoid(model.gamma))
 
         avg_loss = train_loss / len(train_loader)
         print('====> Epoch: {} Average train loss: {:.6f}'.format(
@@ -350,16 +372,19 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
         if avg_loss < best_loss:
             best_loss = avg_loss
             torch.save(model.state_dict(), model_file)
+    eval_all_loss()
+
 
 if args.contrastive:
     train(args.epochs, model_file, lr=args.lr, train_encoder=True, train_transition=True, train_decoder=False)
 else:
     train(args.pretrain_epochs, model_file, lr=args.lr, train_encoder=True, train_transition=False, train_decoder=True)
     train(args.epochs, model_file, lr=args.transit_lr, train_encoder=False, train_transition=True, train_decoder=False)
-    train(args.epochs, finetune_file, lr=args.lr, train_encoder=True, train_decoder=True, train_transition=True)
+    train(args.finetune_epochs, finetune_file, lr=args.slr, train_encoder=True, train_decoder=True, train_transition=True)
 
-if args.eval_dataset is not None:
-    utils.eval_steps(
-        model, [1, 5, 10],
-        filename=args.eval_dataset, batch_size=args.batch_size,
-        save_folder = save_folder, device=device, action_dim = args.action_dim, contrastive = args.contrastive)
+#if args.eval_dataset is not None:
+#    utils.eval_steps(
+#        model, [1, 5, 10],
+#        filename=args.eval_dataset, batch_size=args.batch_size,
+#        import pdb; pdb.set_trace()
+#        save_folder = save_folder, device=device, action_dim = args.action_dim, contrastive = args.contrastive)

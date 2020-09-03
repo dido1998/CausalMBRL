@@ -373,7 +373,9 @@ def evaluate(model, loader, *,
             pred_state = state
             for i in range(num_steps):
                 pred_state = model.transition(pred_state, actions[i])
-            
+                if model.learn_edges:
+                    pred_state = pred_state[0]
+
             if not contrastive:
                 rec_obs = model.decoder(pred_state)
                 rec += image_loss(rec_obs, next_obs).item()
