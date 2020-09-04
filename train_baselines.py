@@ -35,12 +35,14 @@ parser.add_argument('--pretrain-epochs', type=int, default=100,
                     help='Number of pretraining epochs.')
 parser.add_argument('--finetune-epochs', type=int, default=100,
                     help='Number of finetune epochs.')
-parser.add_argument('--slr', type=float, default=1e-2,
+parser.add_argument('--slr', type=float, default=5e-4,
                     help='Structural learning rate.')
 parser.add_argument('--lr', type=float, default=5e-4,
                     help='Learning rate.')
 parser.add_argument('--transit-lr', type=float, default=5e-4,
                     help='Learning rate for transition model.')
+parser.add_argument('--finetune-lr', type=float, default=5e-4,
+                    help='Learning rate for finetune model.')
 parser.add_argument('--update-interval', type=int, default=10,
                     help='update interval for structural params.')
 parser.add_argument('--encoder', type=str, default='small',
@@ -244,7 +246,8 @@ def evaluate(model_file, valid_loader, train_encoder = True, train_decoder = Tru
                                         hinge=args.hinge, sigma=args.sigma)
             else:
                 recon = model.decoder(state)
-                next_recon = model.decoder(next_state)
+                next_recon = model.decoder(pred_state)
+                #next_recon = model.decoder(next_state)
 
                 if train_encoder and train_decoder:
                     loss += image_loss(recon, obs)
@@ -313,7 +316,8 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
                                         hinge=args.hinge, sigma=args.sigma)
             else:
                 recon = model.decoder(state)
-                next_recon = model.decoder(next_state)
+                next_recon = model.decoder(pred_state)
+                #next_recon = model.decoder(next_state)
 
                 if train_encoder and train_decoder:
                     loss += image_loss(recon, obs)
@@ -372,15 +376,17 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
         if avg_loss < best_loss:
             best_loss = avg_loss
             torch.save(model.state_dict(), model_file)
-    eval_all_loss()
-
+        
+        if epoch > 0 and epoch % 100 == 0:
+            eval_all_loss()
+            
 
 if args.contrastive:
     train(args.epochs, model_file, lr=args.lr, train_encoder=True, train_transition=True, train_decoder=False)
 else:
     train(args.pretrain_epochs, model_file, lr=args.lr, train_encoder=True, train_transition=False, train_decoder=True)
     train(args.epochs, model_file, lr=args.transit_lr, train_encoder=False, train_transition=True, train_decoder=False)
-    train(args.finetune_epochs, finetune_file, lr=args.slr, train_encoder=True, train_decoder=True, train_transition=True)
+    train(args.finetune_epochs, finetune_file, lr=args.finetune_lr, train_encoder=True, train_decoder=True, train_transition=True)
 
 #if args.eval_dataset is not None:
 #    utils.eval_steps(
