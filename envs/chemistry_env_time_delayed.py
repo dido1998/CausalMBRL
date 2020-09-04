@@ -457,7 +457,7 @@ class ColorChangingTimeRL(gym.Env):
         #    self.adjacency_matrix = random_dag(num_nodes, num_nodes, g = graph)
 
         self.adjacency_matrix = torch.from_numpy(self.adjacency_matrix).float()
-        self.times = torch.rand(self.adjacency_matrix.size()) * 5
+        self.times = torch.rand(self.adjacency_matrix.size()) * 3
 
         self.times = (torch.poisson(self.times) + 1) * self.adjacency_matrix
         #print(self.times)
@@ -521,7 +521,7 @@ class ColorChangingTimeRL(gym.Env):
         num_edges = np.random.randint(num_nodes, (((num_nodes) * (num_nodes - 1)) // 2) + 1)
         self.adjacency_matrix = random_dag(num_nodes, num_edges, g = g)
         self.adjacency_matrix = torch.from_numpy(self.adjacency_matrix).float()
-        self.times = torch.rand(self.adjacency_matrix.size()) * 5
+        self.times = torch.rand(self.adjacency_matrix.size()) * 3
         self.times = (torch.poisson(self.times) + 1) * self.adjacency_matrix
 
         print(self.adjacency_matrix)
