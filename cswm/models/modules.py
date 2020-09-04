@@ -27,7 +27,7 @@ class CausalTransitionModel(nn.Module):
                  action_dim, num_objects, input_shape=[3, 50, 50],
                  predict_diff=True, encoder='large', modular=False, 
                  vae=False, gnn=False, learn_edges = False, num_graphs = 10, multiplier=1, ignore_action=False,
-                 copy_action=False):
+                 causal=False, graph=None, copy_action=False):
         super(CausalTransitionModel, self).__init__()
 
         self.hidden_dim = hidden_dim
@@ -38,6 +38,8 @@ class CausalTransitionModel(nn.Module):
         self.predict_diff = predict_diff
         self.vae = vae
         self.gnn = gnn
+        self.graph = graph
+        self.causal = causal
         self.num_graphs = num_graphs
         self.learn_edges = learn_edges
         self.ignore_action = ignore_action
@@ -196,15 +198,18 @@ class CausalTransitionModel(nn.Module):
     def causal_model(self, state, action):
         # iterate through all M MLPs
         # if no learned edges, then no need to learn gamma
-
         gamma_itr = 1
         if self.learn_edges:
             gamma_itr = self.num_graphs
-        
-        gammaexp = self.graph_sample(gamma_itr)
-        gammagrads = []
+            gammaexp = self.graph_sample(gamma_itr)
+            gammagrads = []
+            gamma_losses = []
+        else:
+            gammaexp = self.graph + torch.eye(self.graph.shape[0])  
+            gammaexp = gammaexp.cuda()
         loss = []
-        gamma_losses = []
+        
+
         # TODO: if not learning edges: then only iterate once!
         pred_next_state_ = []
 
@@ -213,7 +218,11 @@ class CausalTransitionModel(nn.Module):
             for i in range(self.num_objects):
                 #print(gammaexp[gamma_i,:,i].view(1, -1, 1).size())
                 #print(state.size())
-                ins = gammaexp[gamma_i,:,i].view(1, -1, 1) * state#.view(state.size(0), self.num_objects, -1)
+                if gamma_itr > 1:
+                    gamma = gammaexp[gamma_i,:,i]
+                else:
+                    gamma = gammaexp[i]
+                ins = gamma.view(1, -1, 1) * state #.view(state.size(0), self.num_objects, -1)
                 ins = ins.reshape(ins.shape[0], -1)
                 #print(ins.shape)
                 #ins = state.reshape(state.shape[0], -1)
@@ -279,11 +288,12 @@ class CausalTransitionModel(nn.Module):
         return pred_next_state
 
     def transition(self, state, action):
-        if self.learn_edges:
+        if self.causal:
             pred_next_state, pred_next_states, gamma_exp = self.causal_model(state, action)
-
-            return pred_next_state, pred_next_states, gamma_exp
-
+            if self.learn_edges:
+                return pred_next_state, pred_next_states, gamma_exp
+            else:
+                return pred_next_state
         if self.modular:
             pred_next_state = self.modular_transition(
                 state, action)
@@ -313,7 +323,8 @@ class CausalTransitionModelLSTM(nn.Module):
     """
     def __init__(self, embedding_dim_per_object, input_dims, hidden_dim, action_dim,
                  num_objects, input_shape=[3, 50, 50], predict_diff=True, encoder='large',
-                 modular=False, vae=False, rim = False, scoff = False, multiplier=1):
+                 graph=None, modular=False, vae=False, rim = False, scoff = False,
+                 multiplier=1):
         super(CausalTransitionModelLSTM, self).__init__()
 
         self.hidden_dim = hidden_dim
@@ -323,6 +334,7 @@ class CausalTransitionModelLSTM(nn.Module):
         self.modular = modular
         self.predict_diff = predict_diff
         self.vae = vae
+        self.graph = graph
 
         num_channels = input_dims[0]
         width_height = input_dims[1:]
