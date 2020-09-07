@@ -134,7 +134,7 @@ def register_chemistry_rl_time_envs(name = 'ColorChangingTimeRL-{}-{}-{}-{}-{}',
                             num_colors = 5, movement = 'Dynamic', max_steps = 50, **kwargs):
     register(
         name.format(num_objects, num_colors, movement, max_steps, 'v0'),
-        entry_point = 'envs.chemisty_env_time_delayed:ColorChangingTimeRL',
+        entry_point = 'envs.chemistry_env_time_delayed:ColorChangingTimeRL',
         kwargs=dict(
             render_type='shapes',
             num_objects=num_objects,
