@@ -9,7 +9,7 @@ contrastive_loss=$4
 max_steps=$5
 movement=$6
 model=$7
-save_folder=latest_model/$model-$num_obj-$num_colors-$max_steps-$movement-$seed-$contrastive_loss
+save_folder=latest_models/$model-$num_obj-$num_colors-$max_steps-$movement-$seed-$contrastive_loss
 truth=True
 
 echo "$save_folder"
