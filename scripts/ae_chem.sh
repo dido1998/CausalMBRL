@@ -54,7 +54,7 @@ then
 else
 	save_folder_="$save_folder-1"
   	python train_baselines.py --dataset data/ColorChanging${time}RL_$num_obj-$num_colors-$max_steps-$movement-train-$seed.h5 \
-	--encoder "slot" --name  "ae_$num_obj-$size-$num_colors-$seed"   \
+	--encoder "medium" --name  "ae_$num_obj-$size-$num_colors-$seed"   \
 	--eval-dataset data/ColorChanging${time}RL_$num_obj-$num_colors-$max_steps-$movement-test-$seed.h5 \
 	--embedding-dim-per-object 32 --num-objects $num_obj --action-dim $num_colors  \
 	--valid-dataset data/ColorChanging${time}RL_$num_obj-$num_colors-$max_steps-$movement-valid-$seed.h5 \
