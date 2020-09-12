@@ -460,7 +460,7 @@ class ColorChangingTimeRL(gym.Env):
         self.times = torch.rand(self.adjacency_matrix.size()) * 3
 
         self.times = (torch.poisson(self.times) + 1) * self.adjacency_matrix
-        #print(self.times)
+        
         #print(self.adjacency_matrix)
 
         # Generate masks so that each variable only recieves input from its parents.
@@ -525,6 +525,7 @@ class ColorChangingTimeRL(gym.Env):
         self.times = (torch.poisson(self.times) + 1) * self.adjacency_matrix
 
         print(self.adjacency_matrix)
+        print(self.times)
         self.generate_masks()
         self.reset()
 
@@ -663,7 +664,7 @@ class ColorChangingTimeRL(gym.Env):
             circles=self.render_circles_target,
             shapes=self.render_shapes_target,
             cubes=self.render_cubes,
-        )[self.render_type]()), axis = 0) 
+        )[self.render_type]()), axis = 0)  / 255.0
 
     def get_state(self):
         im = np.zeros(
