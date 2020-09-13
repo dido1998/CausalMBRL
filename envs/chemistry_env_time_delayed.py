@@ -873,9 +873,9 @@ class ColorChangingTimeRL(gym.Env):
         for idx, obj in self.objects.items():
             color1 = [obj.color.r, obj.color.g, obj.color.b]
             color2 = [self.objects_target[idx].color.r, self.objects_target[idx].color.g, self.objects_target[idx].color.b]
-            mse1 = math.sqrt((color1[0] - color2[0]) **2)
-            mse2 = math.sqrt((color1[1] - color2[1]) **2)
-            mse3 = math.sqrt((color1[2] - color2[2]) **2)
+            mse1 = abs(color1[0] - color2[0])
+            mse2 = abs(color1[1] - color2[1])
+            mse3 = abs(color1[2] - color2[2])
             mse_avg = (mse1 + mse2 + mse3) / 3
             if mse_avg < 25:
                 matches += 1
@@ -910,9 +910,9 @@ class ColorChangingTimeRL(gym.Env):
         for idx, obj in self.objects.items():
             color1 = [obj.color.r, obj.color.g, obj.color.b]
             color2 = [self.objects_target[idx].color.r, self.objects_target[idx].color.g, self.objects_target[idx].color.b]
-            mse1 = math.sqrt((color1[0] - color2[0]) **2)
-            mse2 = math.sqrt((color1[1] - color2[1]) **2)
-            mse3 = math.sqrt((color1[2] - color2[2]) **2)
+            mse1 = abs(color1[0] - color2[0])
+            mse2 = abs(color1[1] - color2[1])
+            mse3 = abs(color1[2] - color2[2])
             mse_avg = (mse1 + mse2 + mse3) / 3
             if mse_avg < 25:
                 matches += 1
