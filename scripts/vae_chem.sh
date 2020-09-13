@@ -1,5 +1,5 @@
 #!/bin/bash
-
+source ../../../../tensor2tensor/bin/activate
 num_obj=$1
 num_colors=$2
 seed=$3
@@ -31,7 +31,7 @@ then
 	--embedding-dim-per-object 32 --num-objects $num_obj --action-dim $num_colors  \
 	--valid-dataset data/ColorChanging${time}RL_$num_obj-$num_colors-$max_steps-$movement-valid-$seed.h5 \
 	--save-folder $save_folder_ --batch-size 512 --seed 1 \
-	--epochs 100 --pretrain-epochs 100 --predict-diff --contrastive | tee -a "$save_folder_/train.log"
+	--epochs 100 --pretrain-epochs 100 --predict-diff --contrastive --vae | tee -a "$save_folder_/train.log"
 
 	save_folder_="$save_folder-2"
   	python train_baselines.py --dataset data/ColorChanging${time}RL_$num_obj-$num_colors-$max_steps-$movement-train-$seed.h5 \
@@ -40,7 +40,7 @@ then
 	--embedding-dim-per-object 32 --num-objects $num_obj --action-dim $num_colors  \
 	--valid-dataset data/ColorChanging${time}RL_$num_obj-$num_colors-$max_steps-$movement-valid-$seed.h5 \
 	--save-folder $save_folder_ --batch-size 512 --seed 2 \
-	--epochs 100 --pretrain-epochs 100 --predict-diff --contrastive | tee -a "$save_folder_/train.log"
+	--epochs 100 --pretrain-epochs 100 --predict-diff --contrastive --vae | tee -a "$save_folder_/train.log"
 
 	save_folder_="$save_folder-3"
   	python train_baselines.py --dataset data/ColorChanging${time}RL_$num_obj-$num_colors-$max_steps-$movement-train-$seed.h5 \
@@ -49,7 +49,7 @@ then
 	--embedding-dim-per-object 32 --num-objects $num_obj --action-dim $num_colors  \
 	--valid-dataset data/ColorChanging${time}RL_$num_obj-$num_colors-$max_steps-$movement-valid-$seed.h5 \
 	--save-folder $save_folder_ --batch-size 512 --seed 3 \
-	--epochs 100 --pretrain-epochs 100 --predict-diff --contrastive | tee -a "$save_folder_/train.log"
+	--epochs 100 --pretrain-epochs 100 --predict-diff --contrastive --vae | tee -a "$save_folder_/train.log"
 else
 	save_folder_="$save_folder-1"
   	python train_baselines.py --dataset data/ColorChanging${time}RL_$num_obj-$num_colors-$max_steps-$movement-train-$seed.h5 \
@@ -58,7 +58,7 @@ else
 	--embedding-dim-per-object 32 --num-objects $num_obj --action-dim $num_colors  \
 	--valid-dataset data/ColorChanging${time}RL_$num_obj-$num_colors-$max_steps-$movement-valid-$seed.h5 \
 	--save-folder $save_folder_ --batch-size 512 --seed 1 \
-	--epochs 100 --pretrain-epochs 100 --predict-diff | tee -a "$save_folder_/train.log"
+	--epochs 100 --pretrain-epochs 100 --predict-diff --vae | tee -a "$save_folder_/train.log"
 
 	save_folder_="$save_folder-2"
   	python train_baselines.py --dataset data/ColorChanging${time}RL_$num_obj-$num_colors-$max_steps-$movement-train-$seed.h5 \
@@ -67,7 +67,7 @@ else
 	--embedding-dim-per-object 32 --num-objects $num_obj --action-dim $num_colors  \
 	--valid-dataset data/ColorChanging${time}RL_$num_obj-$num_colors-$max_steps-$movement-valid-$seed.h5 \
 	--save-folder $save_folder_ --batch-size 512 --seed 2 \
-	--epochs 100 --pretrain-epochs 100 --predict-diff  | tee -a "$save_folder_/train.log"
+	--epochs 100 --pretrain-epochs 100 --predict-diff --vae | tee -a "$save_folder_/train.log"
 
 	save_folder_="$save_folder-3"
   	python train_baselines.py --dataset data/ColorChanging${time}RL_$num_obj-$num_colors-$max_steps-$movement-train-$seed.h5 \
@@ -76,7 +76,7 @@ else
 	--embedding-dim-per-object 32 --num-objects $num_obj --action-dim $num_colors  \
 	--valid-dataset data/ColorChanging${time}RL_$num_obj-$num_colors-$max_steps-$movement-valid-$seed.h5 \
 	--save-folder $save_folder_ --batch-size 512 --seed 3 \
-	--epochs 100 --pretrain-epochs 100 --predict-diff | tee -a "$save_folder_/train.log"
+	--epochs 100 --pretrain-epochs 100 --predict-diff  --vae | tee -a "$save_folder_/train.log"
 
 fi
 
