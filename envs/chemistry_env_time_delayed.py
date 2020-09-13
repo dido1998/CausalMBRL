@@ -22,6 +22,7 @@ import skimage.draw
 from cswm import utils
 import random
 import math
+import copy
 
 graphs = {
     'chain3':'0->1->2',
@@ -596,16 +597,17 @@ class ColorChangingTimeRL(gym.Env):
 
     def render_grid_target(self):
         im = np.zeros((3, self.width, self.height))
-        for idx, obj in self.objects.items():
+        for idx, obj in self.objects_target.items():
             im[:, obj.pos.x, obj.pos.y] = self.colors[torch.argmax(self.object_to_color_target[idx]).item()][:3]
         return im
 
     def render_circles_target(self):
         im = np.zeros((self.width * 10, self.height * 10, 3), dtype=np.float32)
-        for idx, obj in self.objects.items():
+        for idx, obj in self.objects_target.items():
+            color = np.array([obj.color.r, obj.color.g, obj.color.b])
             rr, cc = skimage.draw.circle(
                 obj.pos.x * 10 + 5, obj.pos.y * 10 + 5, 5, im.shape)
-            im[rr, cc, :] = self.colors[torch.argmax(self.object_to_color_target[idx]).item()][:3]
+            im[rr, cc, :] = color
         return im.transpose([2, 0, 1])
 
     def render_shapes_target(self):
@@ -721,17 +723,20 @@ class ColorChangingTimeRL(gym.Env):
                         ),
                         color=temp_object[idx].color)
 
-        self.objects_target = self.objects.copy()
+        self.objects_target = copy.deepcopy(self.objects)
         target_color = self.colors[random.randint(0, self.num_colors - 1)]
         self.objects_target[0].color.r = target_color[0]
         self.objects_target[0].color.g = target_color[1]
         self.objects_target[0].color.b = target_color[2]
+        
         self.sample_variables(0, do_everything = True, targets = True)
         self.step_variables(targets = True)
 
         self.generate_target(num_steps)
         #self.check_softmax()
         #self.check_softmax_target()
+
+
         observations = self.render()
         observation_in, observations_target = observations[:3, :, :], observations[3:, :, :]
         state_in, state_target = self.get_state()
@@ -766,9 +771,9 @@ class ColorChangingTimeRL(gym.Env):
         idx: variable at which intervention is performed
         """
         if not targets:
-            objects = self.objects.copy()
+            objects = copy.deepcopy(self.objects)
         else:
-            objects = self.objects_target.copy()
+            objects = copy.deepcopy(self.objects_target)
         reached = [idx]
 
         inp = torch.zeros(1, self.num_objects * 3)
@@ -806,15 +811,15 @@ class ColorChangingTimeRL(gym.Env):
                         objects[v].color.g = target_color[1]
                         objects[v].color.b = target_color[2]
         if not targets:
-            self.objects = objects.copy()
+            self.objects = copy.deepcopy(objects)
         else:
-            self.objects_target = objects.copy()
+            self.objects_target = copy.deepcopy(objects)
     
     def step_variables(self, targets = False):
         if not targets:
-            objects = self.objects.copy()
+            objects = copy.deepcopy(self.objects)
         else:
-            objects = self.objects_target.copy()
+            objects = copy.deepcopy(self.objects_target)
         for idx, obj in objects.items():
             #print(self.color_tracker[idx])
             if len(self.color_tracker[idx]) > 0:
@@ -826,9 +831,9 @@ class ColorChangingTimeRL(gym.Env):
             #print(self.color_tracker[idx])
             #print('---------------')
         if not targets:
-            self.objects = objects.copy()
+            self.objects = copy.deepcopy(objects)
         else:
-            self.objects_target = objects.copy()
+            self.objects_target = copy.deepcopy(objects)
 
     def translate(self, obj_id, color_id):
         """Translate object pixel.
