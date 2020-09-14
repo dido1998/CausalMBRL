@@ -404,7 +404,7 @@ class ColorChangingTimeRL(gym.Env):
 
     def __init__(self, width=5, height=5, render_type='cubes',
                  *, num_objects=5,
-                 num_colors=None,  movement = 'Dynamic', max_steps = 50, seed=None):
+                 num_colors=None,  movement = 'Dynamic', edge = -1, max_steps = 50, seed=None):
         #np.random.seed(0)
         #torch.manual_seed(0)
         self.width = width
@@ -420,6 +420,7 @@ class ColorChangingTimeRL(gym.Env):
         self.num_actions = self.num_objects * self.num_colors
         self.num_target_interventions = max_steps
         self.max_steps = max_steps
+        self.edge = edge
         
         self.mlps = []
         self.mask = None
@@ -458,9 +459,12 @@ class ColorChangingTimeRL(gym.Env):
         #    self.adjacency_matrix = random_dag(num_nodes, num_nodes, g = graph)
 
         self.adjacency_matrix = torch.from_numpy(self.adjacency_matrix).float()
-        self.times = torch.rand(self.adjacency_matrix.size()) * 3
+        if self.edge == -1:
+            self.times = torch.rand(self.adjacency_matrix.size()) * 3
 
-        self.times = (torch.poisson(self.times) + 1) * self.adjacency_matrix
+            self.times = (torch.poisson(self.times) + 1) * self.adjacency_matrix
+        else:
+            self.times = torch.ones(self.adjacency_matrix.size()) * self.edge * self.adjacency_matrix
         
         #print(self.adjacency_matrix)
 
@@ -522,9 +526,11 @@ class ColorChangingTimeRL(gym.Env):
         num_edges = np.random.randint(num_nodes, (((num_nodes) * (num_nodes - 1)) // 2) + 1)
         self.adjacency_matrix = random_dag(num_nodes, num_edges, g = g)
         self.adjacency_matrix = torch.from_numpy(self.adjacency_matrix).float()
-        self.times = torch.rand(self.adjacency_matrix.size()) * 3
-        self.times = (torch.poisson(self.times) + 1) * self.adjacency_matrix
-
+        if self.edge == -1:
+            self.times = torch.rand(self.adjacency_matrix.size()) * 3
+            self.times = (torch.poisson(self.times) + 1) * self.adjacency_matrix
+        else:
+            self.times = torch.ones(self.adjacency_matrix.size()) * self.edge * self.adjacency_matrix
         print(self.adjacency_matrix)
         print(self.times)
         self.generate_masks()

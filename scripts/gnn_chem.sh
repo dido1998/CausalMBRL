@@ -7,7 +7,13 @@ contrastive_loss=$4
 max_steps=$5
 movement=$6
 time=$7
-save_folder=gnn-$num_obj-$num_colors-$max_steps-$movement-$seed-$contrastive_loss-$time
+edge=$8
+if [ -z "$8" ]
+then
+	save_folder=gnn-$num_obj-$num_colors-$max_steps-$movement-$seed-$contrastive_loss-$time
+else
+	save_folder=gnn-$num_obj-$num_colors-$edge-$max_steps-$movement-$seed-$contrastive_loss-$time
+fi
 truth=True
 
 rm -r "$save_folder-1"
