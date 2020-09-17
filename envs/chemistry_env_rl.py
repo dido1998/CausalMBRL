@@ -343,7 +343,6 @@ class MLP(nn.Module):
                 x = torch.softmax(l(x), dim = 1)
             else:
                 x = torch.relu(l(x))
-        #print(x)
         
         x = torch.distributions.one_hot_categorical.OneHotCategorical(probs = x).sample()
 
@@ -831,3 +830,44 @@ class ColorChangingRL(gym.Env):
         reward = matches / self.num_objects
         self.cur_step += 1
         return reward, state_obs
+
+    def sample_step_exhaustive(self, exhaustive_steps = 1, extra_info = (None, None)):
+        if exhaustive_steps == 0:
+            return 0, 0
+        else:
+
+            n = self.action_space.n
+            best_reward = 0
+            best_action = 0
+            for action in range(n):
+                
+                if extra_info[0] == None:
+                    og_objects = self.objects.copy()
+                else:
+                    og_objects = self.objects.copy()
+                    self.objects = extra_info[0].copy()
+
+                if extra_info[1] == None:
+                    og_object_to_color = self.object_to_color.copy()
+                else:
+                    og_object_to_color = self.object_to_color.copy()
+                    self.object_to_color = extra_info[1].copy()
+                obj_id = action // self.num_colors
+                color_id = action % self.num_colors
+                self.translate(obj_id, color_id)
+                matches = 0
+                for c1, c2 in zip(self.object_to_color, self.object_to_color_target):
+                    if torch.argmax(c1).item() == torch.argmax(c2).item():
+                        matches+=1
+                reward = 0
+                reward = matches / self.num_objects + self.sample_step_exhaustive(exhaustive_steps = exhaustive_steps - 1,
+                                                                                    extra_info = (self.objects.copy(), self.object_to_color.copy()))[1]
+                self.objects = og_objects.copy()
+                self.object_to_color = og_object_to_color.copy()
+
+
+                if reward > best_reward:
+                    best_reward = reward
+                    best_action = action
+
+            return best_action, best_reward
