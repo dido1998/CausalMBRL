@@ -821,7 +821,39 @@ class ColorChangingRL(gym.Env):
         self.cur_step += 1
         return state_obs, reward, done, None
 
-    def sample_step(self):
+    def sample_step(self, action: int):
+        
+        obj_id = action // self.num_colors
+        color_id = action % self.num_colors 
+
+        
+        done = False
+        objects = self.objects.copy()
+        object_to_color = self.object_to_color.copy()
+        self.translate(obj_id, color_id)
+        matches = 0
+        for c1, c2 in zip(self.object_to_color, self.object_to_color_target):
+            if torch.argmax(c1).item() == torch.argmax(c2).item():
+                matches+=1
+        reward = 0
+        self.objects = objects
+        self.object_to_color = object_to_color
+        #reward = 0
+        #if matches == self.num_objects:
+        #    reward = 1
+
+        
+        state_obs = self.render()
+        state_obs = state_obs[:3, :, :]
+        #state = self.get_state()[0]
+        #state_obs = (state, state_obs)
+        if self.cur_step >= self.max_steps:
+            done = True
+        reward = matches / self.num_objects
+        self.cur_step += 1
+        return reward, state_obs
+
+    def sample_step_1(self):
         action = self.actions_to_target[0]
         self.actions_to_target = self.actions_to_target[1:]
         return action
