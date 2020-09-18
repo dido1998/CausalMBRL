@@ -428,10 +428,11 @@ class ColorChangingRL(gym.Env):
         # If True, then check for collisions and don't allow two
         #   objects to occupy the same position.
         self.collisions = True
+        self.actions_to_target = []
 
         self.objects = OrderedDict()
         # Randomize object position.
-        fixed_object_to_position_mapping = [(0, 0), (0, 4), (4, 0), (4, 4), (2, 2), (1,1), (1, 3), (3, 1)]
+        fixed_object_to_position_mapping = [(0, 0), (0, 4), (4, 0), (4, 4), (2, 2), (1,1), (1, 3), (3, 1), (3,3), (0, 2)]
         while len(self.objects) < self.num_objects:
             idx = len(self.objects)
             # Re-sample to ensure objects don't fall on same spot.
@@ -471,9 +472,9 @@ class ColorChangingRL(gym.Env):
 
     def set_graph(self, g):
         if g in graphs.keys():
-            if int(g[-1]) != self.num_objects:
-                print('ERROR:Env created for ' + str(self.num_objects) + ' objects while graph specified for ' + g[-1] + ' objects')
-                exit()
+            #if int(g[-1]) != self.num_objects:
+            #    print('ERROR:Env created for ' + str(self.num_objects) + ' objects while graph specified for ' + g[-1] + ' objects')
+            #    exit()
             print('INFO: Loading predefined graph for configuration '+str(g))
             g = graphs[g]
         num_nodes = self.num_objects
@@ -536,13 +537,18 @@ class ColorChangingRL(gym.Env):
                 rr, cc = parallelogram(
                     obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
                 im[rr, cc, :] = self.colors[obj.color][:3]
-            else:
-
+            elif idx == 7:
                 rr, cc = scalene_triangle(
                     obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
                 im[rr, cc, :] = self.colors[obj.color][:3]
-
-
+            elif idx == 8:
+                rr, cc = square(
+                    obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
+                im[rr, cc, :] = self.colors[obj.color][:3]
+            elif idx == 9:
+                rr, cc = diamond(
+                    obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
+                im[rr, cc, :] = self.colors[obj.color][:3]
 
         return im.transpose([2, 0, 1])
 
@@ -592,12 +598,18 @@ class ColorChangingRL(gym.Env):
                 rr, cc = parallelogram(
                     obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
                 im[rr, cc, :] = self.colors[torch.argmax(self.object_to_color_target[idx]).item()][:3]
-            else:
-
+            elif idx == 7:
                 rr, cc = scalene_triangle(
                     obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
-                im[rr, cc, :] = self.colors[torch.argmax(self.object_to_color_target[idx]).item()][:3]
-
+                im[rr, cc, :] = self.colors[obj.color][:3]
+            elif idx == 8:
+                rr, cc = square(
+                    obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
+                im[rr, cc, :] = self.colors[obj.color][:3]
+            elif idx == 9:
+                rr, cc = diamond(
+                    obj.pos.x * 10, obj.pos.y * 10, 10, im.shape)
+                im[rr, cc, :] = self.colors[obj.color][:3]
 
 
         return im.transpose([2, 0, 1])
@@ -635,14 +647,19 @@ class ColorChangingRL(gym.Env):
         self.mask = mask.view(self.adjacency_matrix.size(0), -1)
 
     def generate_target(self, num_steps = 10):
+        
+        self.actions_to_target = []
         for i in range(num_steps):
             intervention_id = random.randint(0, self.num_objects - 1)
             to_color = random.randint(0, self.num_colors - 1)
+            self.actions_to_target.append(intervention_id * self.num_colors + to_color)
             #while to_color == torch.argmax(self.object_to_color[intervention_id]):
             #    to_color = random.randint(0, self.num_colors - 1)
-
+            self.object_to_color_target[intervention_id] = torch.zeros(self.num_colors)
             self.object_to_color_target[intervention_id][to_color] = 1
             self.sample_variables_target(intervention_id)
+        
+        
 
     def check_softmax(self):
         s_ = []
@@ -672,7 +689,6 @@ class ColorChangingRL(gym.Env):
         # Sample color for root node randomly
         root_color = np.random.randint(0, self.num_colors)
         self.object_to_color[0][root_color] = 1
-        self.object_to_color_target[0][root_color] = 1
 
 
          # Sample color for other nodes using MLPs
@@ -693,9 +709,11 @@ class ColorChangingRL(gym.Env):
                         color=torch.argmax(self.object_to_color[idx]))
         for idx, obj in self.objects.items():
             obj.color = torch.argmax(self.object_to_color[idx])
-        self.sample_variables_target(0, do_everything = True)
+        #self.sample_variables_target(0, do_everything = True)
+        for i in range(len(self.object_to_color)):
+            self.object_to_color_target[i][torch.argmax(self.object_to_color[i])] = 1
 
-        self.generate_target(num_steps = 10)
+        self.generate_target(num_steps)
         #self.check_softmax()
         #self.check_softmax_target()
         observations = self.render()
@@ -754,6 +772,7 @@ class ColorChangingRL(gym.Env):
                 mask = self.mask[v].unsqueeze(0)
 
                 out = self.mlps[v](inp, mask)
+                self.object_to_color_target[v] = None
                 self.object_to_color_target[v] = out.squeeze(0)
 
     def translate(self, obj_id, color_id):
@@ -772,6 +791,8 @@ class ColorChangingRL(gym.Env):
 
     def step(self, action: int):
         
+        
+        
         obj_id = action // self.num_colors
         color_id = action % self.num_colors 
 
@@ -779,6 +800,7 @@ class ColorChangingRL(gym.Env):
         done = False
         
         self.translate(obj_id, color_id)
+
         matches = 0
         for c1, c2 in zip(self.object_to_color, self.object_to_color_target):
             if torch.argmax(c1).item() == torch.argmax(c2).item():
@@ -799,75 +821,9 @@ class ColorChangingRL(gym.Env):
         self.cur_step += 1
         return state_obs, reward, done, None
 
-    def sample_step(self, action: int):
-        
-        obj_id = action // self.num_colors
-        color_id = action % self.num_colors 
+    def sample_step(self):
+        action = self.actions_to_target[0]
+        self.actions_to_target = self.actions_to_target[1:]
+        return action
 
-        
-        done = False
-        objects = self.objects.copy()
-        object_to_color = self.object_to_color.copy()
-        self.translate(obj_id, color_id)
-        matches = 0
-        for c1, c2 in zip(self.object_to_color, self.object_to_color_target):
-            if torch.argmax(c1).item() == torch.argmax(c2).item():
-                matches+=1
-        reward = 0
-        self.objects = objects
-        self.object_to_color = object_to_color
-        #reward = 0
-        #if matches == self.num_objects:
-        #    reward = 1
-
-        
-        state_obs = self.render()
-        state_obs = state_obs[:3, :, :]
-        #state = self.get_state()[0]
-        #state_obs = (state, state_obs)
-        if self.cur_step >= self.max_steps:
-            done = True
-        reward = matches / self.num_objects
-        self.cur_step += 1
-        return reward, state_obs
-
-    def sample_step_exhaustive(self, exhaustive_steps = 1, extra_info = (None, None)):
-        if exhaustive_steps == 0:
-            return 0, 0
-        else:
-
-            n = self.action_space.n
-            best_reward = 0
-            best_action = 0
-            for action in range(n):
-                
-                if extra_info[0] == None:
-                    og_objects = self.objects.copy()
-                else:
-                    og_objects = self.objects.copy()
-                    self.objects = extra_info[0].copy()
-
-                if extra_info[1] == None:
-                    og_object_to_color = self.object_to_color.copy()
-                else:
-                    og_object_to_color = self.object_to_color.copy()
-                    self.object_to_color = extra_info[1].copy()
-                obj_id = action // self.num_colors
-                color_id = action % self.num_colors
-                self.translate(obj_id, color_id)
-                matches = 0
-                for c1, c2 in zip(self.object_to_color, self.object_to_color_target):
-                    if torch.argmax(c1).item() == torch.argmax(c2).item():
-                        matches+=1
-                reward = 0
-                reward = matches / self.num_objects + self.sample_step_exhaustive(exhaustive_steps = exhaustive_steps - 1,
-                                                                                    extra_info = (self.objects.copy(), self.object_to_color.copy()))[1]
-                self.objects = og_objects.copy()
-                self.object_to_color = og_object_to_color.copy()
-
-
-                if reward > best_reward:
-                    best_reward = reward
-                    best_action = action
-
-            return best_action, best_reward
+    
