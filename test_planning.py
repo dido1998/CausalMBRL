@@ -46,7 +46,7 @@ def get_best_action(env):
     best_reward = -np.inf
     best_action = None
     if 'ColorChanging' in args_eval.env_id:
-        best_action = env.unwrapped.sample_step()
+        best_action = env.unwrapped.sample_step_1()
         return best_action
     else: 
         for i in range(n):
