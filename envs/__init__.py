@@ -130,16 +130,17 @@ def register_chemistry_rl_envs(name = 'ColorChangingRL-{}-{}-{}-{}-{}', num_obje
             **kwargs),
     )
 
-def register_chemistry_rl_time_envs(name = 'ColorChangingTimeRL-{}-{}-{}-{}-{}', num_objects = 5,
-                            num_colors = 5, movement = 'Dynamic', max_steps = 50, **kwargs):
+def register_chemistry_rl_time_envs(name = 'ColorChangingTimeRL-{}-{}-{}-{}-{}-{}', num_objects = 5,
+                            num_colors = 5, movement = 'Dynamic', edge = -1, max_steps = 50, **kwargs):
     register(
-        name.format(num_objects, num_colors, movement, max_steps, 'v0'),
+        name.format(num_objects, num_colors, movement, edge, max_steps, 'v0'),
         entry_point = 'envs.chemistry_env_time_delayed:ColorChangingTimeRL',
         kwargs=dict(
             render_type='shapes',
             num_objects=num_objects,
             num_colors=num_colors,
             movement=movement,
+            edge = edge,
             max_steps=max_steps,
             **kwargs),
     )
@@ -152,7 +153,7 @@ for n_obj in [3, 4, 5, 6, 7, 8]:
     for n_colors in [3, 4, 5, 6, 7, 8]:
         register_chemistry_envs_moving('ColorChangingMoving-{}-{}-{}', n_obj, n_colors)
 
-for n_obj in [3, 4, 5, 6, 7, 8]:
+for n_obj in [3, 4, 5, 6, 7, 8, 9, 10]:
     for n_colors in [3, 4, 5, 6, 7, 8]:
         for movement in ['Dynamic', 'Static']:
             for steps in [10, 20, 30, 40, 50, 200]:
@@ -161,8 +162,9 @@ for n_obj in [3, 4, 5, 6, 7, 8]:
 for n_obj in [3, 4, 5, 6, 7, 8]:
     for n_colors in [3, 4, 5, 6, 7, 8]:
         for movement in ['Dynamic', 'Static']:
-            for steps in [10, 20, 30, 40, 50, 200]:
-                register_chemistry_rl_time_envs('ColorChangingTimeRL-{}-{}-{}-{}-{}', n_obj, n_colors, movement, steps)
+            for edge in [-1, 1 , 2, 3]:
+                for steps in [10, 20, 30, 40, 50, 200]:
+                    register_chemistry_rl_time_envs('ColorChangingTimeRL-{}-{}-{}-{}-{}-{}', n_obj, n_colors, movement, edge, steps)
 
 
 

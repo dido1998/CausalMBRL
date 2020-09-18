@@ -45,13 +45,15 @@ def get_best_action(env):
     n = env.action_space.n
     best_reward = -np.inf
     best_action = None
-
-    for i in range(n):
-        reward, _ = env.unwrapped.sample_step(i)
-        if reward > best_reward:
-            best_reward = reward
-            best_action = i
-
+    if 'ColorChanging' in args_eval.env_id:
+        best_action = env.unwrapped.sample_step()
+        return best_action
+    else: 
+        for i in range(n):
+            reward, _ = env.unwrapped.sample_step(i)
+            if reward > best_reward:
+                best_reward = reward
+                best_action = i
     return best_action
 
 def get_best_model_action(obs, target, action_space, model, reward_model):
@@ -206,12 +208,12 @@ def planning_random(env, episode_count):
     print("Success Rate: ", np.mean(success))
 
 #with gym.make(args_eval.env_id) as env:
-#    if 'ColorChanging' in args_eval.env_id:
-#        env.unwrapped.load_save_information(torch.load(graph_location))
-#    print("Random Planning: ")
-#    planning_random(env, num_eval)
-#    print()
-#
+#    #if 'ColorChanging' in args_eval.env_id:
+#    #    env.unwrapped.load_save_information(torch.load(graph_location))
+#    #print("Random Planning: ")
+#    #planning_random(env, num_eval)
+#    #print()
+
 #    print("Best Planning: ")
 #    planning_best(env, num_eval)
 #    print()
@@ -222,8 +224,8 @@ if 'ColorChanging' in args_eval.env_id:
 
 meta_file = args_eval.save_folder / 'metadata.pkl'
 
-finetune_model_file = args_eval.save_folder / 'finetuned_model.pt'
-finetune_reward_model_file = args_eval.save_folder / 'finetuned_reward_model.pt'
+finetune_model_file = args_eval.save_folder / 'finetune_model.pt'
+finetune_reward_model_file = args_eval.save_folder / 'finetune_reward_model.pt'
 
 random_model_file = args_eval.save_folder / 'random_model.pt'
 random_reward_model_file = args_eval.save_folder / 'random_reward_model.pt'
@@ -235,7 +237,7 @@ with open(meta_file, 'rb') as f:
     args = pickle.load(f)['args']
 
 if 'ColorChanging' in args_eval.env_id:
-    graph_location = 'data/ColorChangingRL_'+str(args.num_objects)+'-'+str(args.action_dim)+'-'+args_eval.env_id.split('-')[-2]+'-train-graph-'+str(args.dataset).split('.')[0].split('-')[-1]
+    graph_location = 'data/ColorChangingRL_'+str(args.num_objects)+'-'+str(args.action_dim)+'-'+args_eval.env_id.split('-')[-2]+'-10-Static-train-graph-'+str(args.dataset).split('.')[0].split('-')[-1]
     print('graph location:' + str(graph_location))
 
 np.random.seed(args.seed)

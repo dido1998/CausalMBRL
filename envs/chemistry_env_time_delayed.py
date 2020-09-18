@@ -22,6 +22,7 @@ import skimage.draw
 from cswm import utils
 import random
 import math
+import copy
 
 graphs = {
     'chain3':'0->1->2',
@@ -403,7 +404,7 @@ class ColorChangingTimeRL(gym.Env):
 
     def __init__(self, width=5, height=5, render_type='cubes',
                  *, num_objects=5,
-                 num_colors=None,  movement = 'Dynamic', max_steps = 50, seed=None):
+                 num_colors=None,  movement = 'Dynamic', edge = -1, max_steps = 50, seed=None):
         #np.random.seed(0)
         #torch.manual_seed(0)
         self.width = width
@@ -419,6 +420,7 @@ class ColorChangingTimeRL(gym.Env):
         self.num_actions = self.num_objects * self.num_colors
         self.num_target_interventions = max_steps
         self.max_steps = max_steps
+        self.edge = edge
         
         self.mlps = []
         self.mask = None
@@ -457,9 +459,12 @@ class ColorChangingTimeRL(gym.Env):
         #    self.adjacency_matrix = random_dag(num_nodes, num_nodes, g = graph)
 
         self.adjacency_matrix = torch.from_numpy(self.adjacency_matrix).float()
-        self.times = torch.rand(self.adjacency_matrix.size()) * 3
+        if self.edge == -1:
+            self.times = torch.rand(self.adjacency_matrix.size()) * 3
 
-        self.times = (torch.poisson(self.times) + 1) * self.adjacency_matrix
+            self.times = (torch.poisson(self.times) + 1) * self.adjacency_matrix
+        else:
+            self.times = torch.ones(self.adjacency_matrix.size()) * self.edge * self.adjacency_matrix
         
         #print(self.adjacency_matrix)
 
@@ -521,9 +526,11 @@ class ColorChangingTimeRL(gym.Env):
         num_edges = np.random.randint(num_nodes, (((num_nodes) * (num_nodes - 1)) // 2) + 1)
         self.adjacency_matrix = random_dag(num_nodes, num_edges, g = g)
         self.adjacency_matrix = torch.from_numpy(self.adjacency_matrix).float()
-        self.times = torch.rand(self.adjacency_matrix.size()) * 3
-        self.times = (torch.poisson(self.times) + 1) * self.adjacency_matrix
-
+        if self.edge == -1:
+            self.times = torch.rand(self.adjacency_matrix.size()) * 3
+            self.times = (torch.poisson(self.times) + 1) * self.adjacency_matrix
+        else:
+            self.times = torch.ones(self.adjacency_matrix.size()) * self.edge * self.adjacency_matrix
         print(self.adjacency_matrix)
         print(self.times)
         self.generate_masks()
@@ -596,16 +603,17 @@ class ColorChangingTimeRL(gym.Env):
 
     def render_grid_target(self):
         im = np.zeros((3, self.width, self.height))
-        for idx, obj in self.objects.items():
+        for idx, obj in self.objects_target.items():
             im[:, obj.pos.x, obj.pos.y] = self.colors[torch.argmax(self.object_to_color_target[idx]).item()][:3]
         return im
 
     def render_circles_target(self):
         im = np.zeros((self.width * 10, self.height * 10, 3), dtype=np.float32)
-        for idx, obj in self.objects.items():
+        for idx, obj in self.objects_target.items():
+            color = np.array([obj.color.r, obj.color.g, obj.color.b])
             rr, cc = skimage.draw.circle(
                 obj.pos.x * 10 + 5, obj.pos.y * 10 + 5, 5, im.shape)
-            im[rr, cc, :] = self.colors[torch.argmax(self.object_to_color_target[idx]).item()][:3]
+            im[rr, cc, :] = color
         return im.transpose([2, 0, 1])
 
     def render_shapes_target(self):
@@ -721,17 +729,20 @@ class ColorChangingTimeRL(gym.Env):
                         ),
                         color=temp_object[idx].color)
 
-        self.objects_target = self.objects.copy()
+        self.objects_target = copy.deepcopy(self.objects)
         target_color = self.colors[random.randint(0, self.num_colors - 1)]
         self.objects_target[0].color.r = target_color[0]
         self.objects_target[0].color.g = target_color[1]
         self.objects_target[0].color.b = target_color[2]
+        
         self.sample_variables(0, do_everything = True, targets = True)
         self.step_variables(targets = True)
 
         self.generate_target(num_steps)
         #self.check_softmax()
         #self.check_softmax_target()
+
+
         observations = self.render()
         observation_in, observations_target = observations[:3, :, :], observations[3:, :, :]
         state_in, state_target = self.get_state()
@@ -766,9 +777,9 @@ class ColorChangingTimeRL(gym.Env):
         idx: variable at which intervention is performed
         """
         if not targets:
-            objects = self.objects.copy()
+            objects = copy.deepcopy(self.objects)
         else:
-            objects = self.objects_target.copy()
+            objects = copy.deepcopy(self.objects_target)
         reached = [idx]
 
         inp = torch.zeros(1, self.num_objects * 3)
@@ -806,15 +817,15 @@ class ColorChangingTimeRL(gym.Env):
                         objects[v].color.g = target_color[1]
                         objects[v].color.b = target_color[2]
         if not targets:
-            self.objects = objects.copy()
+            self.objects = copy.deepcopy(objects)
         else:
-            self.objects_target = objects.copy()
+            self.objects_target = copy.deepcopy(objects)
     
     def step_variables(self, targets = False):
         if not targets:
-            objects = self.objects.copy()
+            objects = copy.deepcopy(self.objects)
         else:
-            objects = self.objects_target.copy()
+            objects = copy.deepcopy(self.objects_target)
         for idx, obj in objects.items():
             #print(self.color_tracker[idx])
             if len(self.color_tracker[idx]) > 0:
@@ -826,9 +837,9 @@ class ColorChangingTimeRL(gym.Env):
             #print(self.color_tracker[idx])
             #print('---------------')
         if not targets:
-            self.objects = objects.copy()
+            self.objects = copy.deepcopy(objects)
         else:
-            self.objects_target = objects.copy()
+            self.objects_target = copy.deepcopy(objects)
 
     def translate(self, obj_id, color_id):
         """Translate object pixel.
@@ -868,9 +879,9 @@ class ColorChangingTimeRL(gym.Env):
         for idx, obj in self.objects.items():
             color1 = [obj.color.r, obj.color.g, obj.color.b]
             color2 = [self.objects_target[idx].color.r, self.objects_target[idx].color.g, self.objects_target[idx].color.b]
-            mse1 = math.sqrt((color1[0] - color2[0]) **2)
-            mse2 = math.sqrt((color1[1] - color2[1]) **2)
-            mse3 = math.sqrt((color1[2] - color2[2]) **2)
+            mse1 = abs(color1[0] - color2[0])
+            mse2 = abs(color1[1] - color2[1])
+            mse3 = abs(color1[2] - color2[2])
             mse_avg = (mse1 + mse2 + mse3) / 3
             if mse_avg < 25:
                 matches += 1
@@ -905,9 +916,9 @@ class ColorChangingTimeRL(gym.Env):
         for idx, obj in self.objects.items():
             color1 = [obj.color.r, obj.color.g, obj.color.b]
             color2 = [self.objects_target[idx].color.r, self.objects_target[idx].color.g, self.objects_target[idx].color.b]
-            mse1 = math.sqrt((color1[0] - color2[0]) **2)
-            mse2 = math.sqrt((color1[1] - color2[1]) **2)
-            mse3 = math.sqrt((color1[2] - color2[2]) **2)
+            mse1 = abs(color1[0] - color2[0])
+            mse2 = abs(color1[1] - color2[1])
+            mse3 = abs(color1[2] - color2[2])
             mse_avg = (mse1 + mse2 + mse3) / 3
             if mse_avg < 25:
                 matches += 1
