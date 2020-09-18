@@ -27,7 +27,6 @@ parser.add_argument('--num-eval', type=int, default=1000)
 parser.add_argument('--num-steps', type=int, default=1)
 parser.add_argument('--save', type=str, default='Experiments')
 parser.add_argument('--recurrent', action='store_true')
-parser.add_argument('--depth', type = int, default = 1)
 
 args_eval = parser.parse_args()
 
@@ -36,100 +35,74 @@ string=""
 num_steps = args_eval.num_steps
 num_eval = args_eval.num_eval
 
-print('USING DEPTH ' + str(args_eval.depth))
-
 def get_success(rewards):
     if 'ColorChanging' in args_eval.env_id:
         return rewards == 1.0
     else:
         return rewards == 0.0
 
-def get_best_action(env, exhaustive_steps = 1):
+def get_best_action(env):
+    n = env.action_space.n
+    best_reward = -np.inf
+    best_action = None
     if 'ColorChanging' in args_eval.env_id:
-        best_action, _ = env.unwrapped.sample_step_exhaustive(exhaustive_steps = exhaustive_steps)
+        best_action = env.unwrapped.sample_step()
         return best_action
-    else:
-        n = env.action_space.n
-        best_reward = -np.inf
-        best_action = None
-
+    else: 
         for i in range(n):
             reward, _ = env.unwrapped.sample_step(i)
             if reward > best_reward:
                 best_reward = reward
                 best_action = i
+    return best_action
 
-        return best_action
+def get_best_model_action(obs, target, action_space, model, reward_model):
+    n = env.action_space.n
+    best_reward = -np.inf
+    best_action = None
+    target = torch.tensor(target).cuda().float().unsqueeze(0)
 
-def get_best_model_action(obs, target, action_space, model, reward_model, exhaustive_steps = 1):
-    if exhaustive_steps == 0:
-        return 0,0
-    else:
-        n = env.action_space.n
-        best_reward = -np.inf
-        best_action = None
-        target = torch.tensor(target).cuda().float().unsqueeze(0)
+    for i in range(n):
+        _, obs = env.unwrapped.sample_step(i)
+        obs = torch.tensor(obs).cuda().float().unsqueeze(0)
 
-        for i in range(n):
-            _, obs = env.unwrapped.sample_step(i)
-            obs = torch.tensor(obs).cuda().float().unsqueeze(0)
+        state, _ = model.encode(obs)
+        state = state.view(state.shape[0], args.num_objects * args.embedding_dim_per_object)
+        target_state, _ = model.encode(target)
+        target_state = target_state.view(target_state.shape[0], args.num_objects * args.embedding_dim_per_object)
 
-            state, _ = model.encode(obs)
-            state = state.view(state.shape[0], args.num_objects * args.embedding_dim_per_object)
-            target_state, _ = model.encode(target)
-            target_state = target_state.view(target_state.shape[0], args.num_objects * args.embedding_dim_per_object)
+        emb = torch.cat([state, target_state], dim=1)
 
-            emb = torch.cat([state, target_state], dim=1)
+        reward_pred = reward_model(emb).detach().cpu().item()
 
-            reward_pred = reward_model(emb).detach().cpu().item() + get_best_model_action(
-                                                                                          obs,
-                                                                                          target,
-                                                                                          action_space,
-                                                                                          model,
-                                                                                          reward_model,
-                                                                                          exhaustive_steps = exhaustive_steps - 1)[1]
+        if reward_pred > best_reward:
+            best_reward = reward_pred
+            best_action = i
 
+    return best_action
 
-            if reward_pred > best_reward:
-                best_reward = reward_pred
-                best_action = i
+def get_best_model_action_transition(state, target_state, action_space, model, reward_model):
+    n = env.action_space.n
+    best_reward = -np.inf
+    best_action = None
+    state_out = None
 
-        return best_action, reward_pred
+    for i in range(n):
+        action = F.one_hot(torch.tensor(i).long(), num_classes=n).cuda().float().unsqueeze(0)
+        next_state = model.transition(state, action)
 
-def get_best_model_action_transition(state, target_state, action_space, model, reward_model, exhaustive_steps = 1):
-    if exhaustive_steps == 0:
-        return 0,0,0
-    else:
+        emb = torch.cat([next_state.view(next_state.shape[0], args.num_objects * args.embedding_dim_per_object),
+                         target_state.view(target_state.shape[0], args.num_objects * args.embedding_dim_per_object)],
+                         dim = 1)
 
-        n = env.action_space.n
-        best_reward = -np.inf
-        best_action = None
-        state_out = None
+        reward_pred = reward_model(emb).detach().cpu().item()
 
-        for i in range(n):
-            action = F.one_hot(torch.tensor(i).long(), num_classes=n).cuda().float().unsqueeze(0)
-            next_state = model.transition(state, action)
+        if reward_pred > best_reward:
+            best_reward = reward_pred
+            best_action = i 
+            state_out = next_state
 
-            emb = torch.cat([next_state.view(next_state.shape[0], args.num_objects * args.embedding_dim_per_object),
-                             target_state.view(target_state.shape[0], args.num_objects * args.embedding_dim_per_object)],
-                             dim = 1)
-
-            reward_pred = reward_model(emb).detach().cpu().item() + get_best_model_action_transition(
-                                                                                                    next_state,
-                                                                                                    target_state,
-                                                                                                    action_space,
-                                                                                                    model,
-                                                                                                    reward_model, 
-                                                                                                    exhaustive_steps = exhaustive_steps - 1
-                                                                                                    )[2]
-
-            if reward_pred > best_reward:
-                best_reward = reward_pred
-                best_action = i 
-                state_out = next_state
-
-        return best_action, state_out, best_reward
-
+    return best_action, state_out
 
 def planning_model(env, model, reward_model, episode_count):
     global string
@@ -140,9 +113,8 @@ def planning_model(env, model, reward_model, episode_count):
         obs, target = env.reset(num_steps=num_steps)
 
         for i in range(num_steps):
-            action, _ = get_best_model_action(obs[1], target[1], 
-                action_space, model, reward_model, exhaustive_steps = args_eval.depth)
-
+            action = get_best_model_action(obs[1], target[1], 
+                action_space, model, reward_model)
 
             obs, reward, _, _ = env.step(action)
 
@@ -175,8 +147,8 @@ def planning_model_transition(env, model, reward_model, episode_count):
         target_state, _ = model.encode(target)
 
         for i in range(num_steps):
-            action, obs_state, _ = get_best_model_action_transition(obs_state, target_state,
-                action_space, model, reward_model, exhaustive_steps = args_eval.depth)
+            action, obs_state = get_best_model_action_transition(obs_state, target_state,
+                action_space, model, reward_model)
 
             _, reward, _, _ = env.step(action)
 
@@ -203,7 +175,7 @@ def planning_best(env, episode_count):
         _, _ = env.reset(num_steps=num_steps)
 
         for i in range(num_steps):
-            action = get_best_action(env, exhaustive_steps = args_eval.depth)
+            action = get_best_action(env)
             _, reward, _, _ = env.step(action)
 
         rewards.append(reward)
@@ -236,9 +208,11 @@ def planning_random(env, episode_count):
     print("Success Rate: ", np.mean(success))
 
 #with gym.make(args_eval.env_id) as env:
-#    print("Random Planning: ")
-#    planning_random(env, num_eval)
-#    print()
+#    #if 'ColorChanging' in args_eval.env_id:
+#    #    env.unwrapped.load_save_information(torch.load(graph_location))
+#    #print("Random Planning: ")
+#    #planning_random(env, num_eval)
+#    #print()
 
 #    print("Best Planning: ")
 #    planning_best(env, num_eval)
@@ -250,7 +224,7 @@ if 'ColorChanging' in args_eval.env_id:
 
 meta_file = args_eval.save_folder / 'metadata.pkl'
 
-finetune_model_file = args_eval.save_folder / 'finetuned_model.pt'
+finetune_model_file = args_eval.save_folder / 'finetune_model.pt'
 finetune_reward_model_file = args_eval.save_folder / 'finetune_reward_model.pt'
 
 random_model_file = args_eval.save_folder / 'random_model.pt'
@@ -263,7 +237,7 @@ with open(meta_file, 'rb') as f:
     args = pickle.load(f)['args']
 
 if 'ColorChanging' in args_eval.env_id:
-    graph_location = 'data/ColorChangingRL_'+str(args.num_objects)+'-'+str(args.action_dim)+'-'+args_eval.env_id.split('-')[-2]+'-Static-train-graph-'+str(args.dataset).split('.')[0].split('-')[-1]
+    graph_location = 'data/ColorChangingRL_'+str(args.num_objects)+'-'+str(args.action_dim)+'-'+args_eval.env_id.split('-')[-2]+'-10-Static-train-graph-'+str(args.dataset).split('.')[0].split('-')[-1]
     print('graph location:' + str(graph_location))
 
 np.random.seed(args.seed)
