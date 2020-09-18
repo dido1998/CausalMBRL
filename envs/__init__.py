@@ -153,7 +153,7 @@ for n_obj in [3, 4, 5, 6, 7, 8]:
     for n_colors in [3, 4, 5, 6, 7, 8]:
         register_chemistry_envs_moving('ColorChangingMoving-{}-{}-{}', n_obj, n_colors)
 
-for n_obj in [3, 4, 5, 6, 7, 8]:
+for n_obj in [3, 4, 5, 6, 7, 8, 9, 10]:
     for n_colors in [3, 4, 5, 6, 7, 8]:
         for movement in ['Dynamic', 'Static']:
             for steps in [10, 20, 30, 40, 50, 200]:
