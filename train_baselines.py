@@ -227,11 +227,11 @@ def evaluate(model_file, valid_loader, train_encoder = True, train_decoder = Tru
     model.eval()
     valid_loss = 0.0
 
+
     with torch.no_grad():
         for batch_idx, data_batch in enumerate(valid_loader):
             data_batch = [tensor.to(device) for tensor in data_batch]
             obs, action, next_obs, _, _ = data_batch
-
             loss = 0.0
 
             state, mean_var = model.encode(obs)
@@ -299,7 +299,7 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
         for batch_idx, data_batch in enumerate(iterator):
             model.train()
             data_batch = [tensor.to(device) for tensor in data_batch]
-            obs, action, next_obs, _, _ = data_batch
+            obs, action, next_obs = data_batch
 
             optimizer.zero_grad()
 
