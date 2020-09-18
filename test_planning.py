@@ -237,7 +237,7 @@ with open(meta_file, 'rb') as f:
     args = pickle.load(f)['args']
 
 if 'ColorChanging' in args_eval.env_id:
-    graph_location = 'data/ColorChangingRL_'+str(args.num_objects)+'-'+str(args.action_dim)+'-'+args_eval.env_id.split('-')[-2]+'-10-Static-train-graph-'+str(args.dataset).split('.')[0].split('-')[-1]
+    graph_location = 'data/ColorChangingRL_'+str(args.num_objects)+'-'+str(args.action_dim)+'-'+args_eval.env_id.split('-')[-2]+'-Static-train-graph-'+str(args.dataset).split('.')[0].split('-')[-1]
     print('graph location:' + str(graph_location))
 
 np.random.seed(args.seed)
