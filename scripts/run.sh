@@ -11,6 +11,10 @@ cmap=$5
 seed=$6
 loss=$7
 emb=$8
+num_rules=$9
+rule_time_steps=${10}
+application_option=${11}
+rule_dim=${12}
 
 data="/home/sarthmit/scratch/C-SWM/Data/Observed/wshapes_observed"
 #data="/home/sarthmit/scratch/C-SWM/Data/Unobserved/wshapes_unobserved"
@@ -49,7 +53,7 @@ elif [[ $name == *"Modular"* ]]; then
 	       	--num-objects $num_obj \
                 --valid-dataset $data"_"$num_obj"_"$cmap"_valid.h5" --epochs 100 \
                 --pretrain-epochs 100 --batch-size $bs --silent --save-folder $save \
-                --seed $seed --predict-diff --modular $extras
+                --seed $seed --predict-diff --modular $extras --num_rules $num_rules  --rule_dim $rule_dim --rule_time_steps $rule_time_steps --application_option $application_option
 elif [[ $name == *"GNN"* ]]; then
         python ../train_baselines.py --dataset $data"_"$num_obj"_"$cmap"_train.h5" \
                 --encoder $encoder --name $name --embedding-dim-per-object $emb \
