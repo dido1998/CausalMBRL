@@ -356,8 +356,8 @@ class MLP(nn.Module):
         self.layers = []
         for i in range(1, len(dims)):
             self.layers.append(nn.Linear(dims[i-1], dims[i]))
-            torch.nn.init.uniform_(self.layers[-1].weight.data, -1.2, +1.2)
-            torch.nn.init.uniform_(self.layers[-1].bias.data, -1.8, +1.8)
+            torch.nn.init.orthogonal_(self.layers[-1].weight.data, 3.5)
+            torch.nn.init.uniform_(self.layers[-1].bias.data, -2.1, +2.1)
         self.layers = nn.ModuleList(self.layers)
 
     def forward(self, x, mask):
