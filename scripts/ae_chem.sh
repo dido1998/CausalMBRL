@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source ../modular_central/torch/bin/activate
+
 num_obj=$1
 num_colors=$2
 seed=$3

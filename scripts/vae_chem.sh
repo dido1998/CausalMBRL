@@ -1,5 +1,5 @@
 #!/bin/bash
-source ../../../../tensor2tensor/bin/activate
+source ../modular_central/torch/bin/activate
 num_obj=$1
 num_colors=$2
 seed=$3
@@ -10,12 +10,12 @@ time=$7
 edge=$8
 if [ -z "$8" ]
 then
-	save_folder=ae-$num_obj-$num_colors-$max_steps-$movement-$seed-$contrastive_loss-$time
+	save_folder=vae-$num_obj-$num_colors-$max_steps-$movement-$seed-$contrastive_loss-$time
 	dataset1=data/ColorChanging${time}RL_$num_obj-$num_colors-$max_steps-$movement-train-$seed.h5
 	dataset2=data/ColorChanging${time}RL_$num_obj-$num_colors-$max_steps-$movement-test-$seed.h5
 	dataset3=data/ColorChanging${time}RL_$num_obj-$num_colors-$max_steps-$movement-valid-$seed.h5
 else
-	save_folder=ae-$num_obj-$num_colors-$edge-$max_steps-$movement-$seed-$contrastive_loss-$time
+	save_folder=vae-$num_obj-$num_colors-$edge-$max_steps-$movement-$seed-$contrastive_loss-$time
 	dataset1=data/ColorChanging${time}RL_$num_obj-$num_colors-$edge-$max_steps-$movement-train-$seed.h5
 	dataset2=data/ColorChanging${time}RL_$num_obj-$num_colors-$edge-$max_steps-$movement-test-$seed.h5
 	dataset3=data/ColorChanging${time}RL_$num_obj-$num_colors-$edge-$max_steps-$movement-valid-$seed.h5
