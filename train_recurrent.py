@@ -25,7 +25,9 @@ from cswm.utils import OneHot
 parser = argparse.ArgumentParser()
 parser.add_argument('--batch-size', type=int, default=1024,
                     help='Batch size.')
-parser.add_argument('--epochs', type=int, default=100,
+parser.add_argument('--epochs', type=int, default=0,
+                    help='Number of training epochs.')
+parser.add_argument('--finetune-epochs', type=int, default=100,
                     help='Number of training epochs.')
 parser.add_argument('--pretrain-epochs', type=int, default=100,
                     help='Number of pretraining epochs.')
@@ -225,6 +227,8 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
         parameters = chain(parameters, model.decoder_parameters())
 
     optimizer = torch.optim.Adam(parameters, lr=lr)
+    
+    avg_loss = evaluate(model_file, valid_loader, train_encoder = train_encoder, train_decoder = train_decoder, train_transition = train_transition)
 
     print('Starting model training...')
     best_loss = 1e9
@@ -341,7 +345,7 @@ else:
         valid_dataset, batch_size=5, shuffle=True, num_workers=args.num_workers)
 
     train(args.epochs, model_file, lr=args.transit_lr, train_encoder=False, train_transition=True, train_decoder=False)
-    train(args.epochs, finetune_file, lr=args.lr, train_encoder=True, train_decoder=True, train_transition=True)
+    train(args.finetune_epochs, finetune_file, lr=args.lr, train_encoder=True, train_decoder=True, train_transition=True)
 
 if args.eval_dataset is not None:
     utils.eval_steps_lstm(
