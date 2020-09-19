@@ -896,8 +896,8 @@ class ColorChangingTimeRL(gym.Env):
         state_obs = state_obs[:3, :, :]
         state = self.get_state()[0]
         state_obs = (state, state_obs)
-        if self.cur_step >= self.max_steps:
-            done = True
+        #if self.cur_step >= self.max_steps:
+        #    done = True
         reward = matches / self.num_objects
         self.cur_step += 1
         return state_obs, reward, done, None
