@@ -44,7 +44,7 @@ then
 	--embedding-dim-per-object 32 --num-objects $num_obj --action-dim $num_colors  \
 	--valid-dataset $dataset3 \
 	--save-folder $save_folder_ --batch-size 32 --seed 1 \
-	--epochs 100 --pretrain-epochs 100 --predict-diff --rim --contrastive | tee -a "$save_folder_/train.log"
+	--epochs 0 --finetune-epochs 100 --predict-diff --rim --contrastive | tee -a "$save_folder_/train.log"
 
     save_folder_="$save_folder-2"
   	python train_recurrent.py --dataset $dataset1 \
@@ -53,7 +53,7 @@ then
 	--embedding-dim-per-object 32 --num-objects $num_obj --action-dim $num_colors  \
 	--valid-dataset $dataset3 \
 	--save-folder $save_folder_ --batch-size 32 --seed 2 \
-	--epochs 100 --pretrain-epochs 100 --predict-diff --rim --contrastive | tee -a "$save_folder_/train.log"
+	--epochs 0 --finetune-epochs 100 --predict-diff --rim --contrastive | tee -a "$save_folder_/train.log"
 
 	save_folder_="$save_folder-3"
   	python train_recurrent.py --dataset $dataset1 \
@@ -62,7 +62,7 @@ then
 	--embedding-dim-per-object 32 --num-objects $num_obj --action-dim $num_colors  \
 	--valid-dataset $dataset3 \
 	--save-folder $save_folder_ --batch-size 32 --seed 3 \
-	--epochs 100 --pretrain-epochs 100 --predict-diff --rim --contrastive | tee -a "$save_folder_/train.log"
+	--epochs 0 --finetune-epochs 100 --predict-diff --rim --contrastive | tee -a "$save_folder_/train.log"
 
 else
     save_folder_="$save_folder-1"
@@ -72,7 +72,7 @@ else
 	--embedding-dim-per-object 32 --num-objects $num_obj --action-dim $num_colors  \
 	--valid-dataset $dataset3 \
 	--save-folder $save_folder_ --batch-size 32 --seed 1 \
-	--epochs 100 --pretrain-epochs 100 --predict-diff --rim | tee -a "$save_folder_/train.log"
+	--epochs 0 --finetune-epochs 100 --predict-diff --rim | tee -a "$save_folder_/train.log"
 
     save_folder_="$save_folder-2"
   	python train_recurrent.py --dataset $dataset1 \
@@ -81,7 +81,7 @@ else
 	--embedding-dim-per-object 32 --num-objects $num_obj --action-dim $num_colors  \
 	--valid-dataset $dataset3 \
 	--save-folder $save_folder_ --batch-size 32 --seed 2 \
-	--epochs 100 --pretrain-epochs 100 --predict-diff --rim | tee -a "$save_folder_/train.log"
+	--epochs 0 --finetune-epochs 100 --predict-diff --rim | tee -a "$save_folder_/train.log"
 
 	save_folder_="$save_folder-3"
   	python train_recurrent.py --dataset $dataset1 \
@@ -90,7 +90,7 @@ else
 	--embedding-dim-per-object 32 --num-objects $num_obj --action-dim $num_colors  \
 	--valid-dataset $dataset3 \
 	--save-folder $save_folder_ --batch-size 32 --seed 3 \
-	--epochs 100 --pretrain-epochs 100 --predict-diff --rim | tee -a "$save_folder_/train.log"
+	--epochs 0 --finetune-epochs 100 --predict-diff --rim | tee -a "$save_folder_/train.log"
 
 fi
 
