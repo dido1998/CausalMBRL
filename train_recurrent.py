@@ -182,6 +182,8 @@ def evaluate(model_file, valid_loader, train_encoder = True, train_decoder = Tru
             loss = 0.0
             n_examples = 0
 
+            
+
             for j in range(obs.shape[0] - 1):
                 state, mean_var = model.encode(obs[j])
                 next_state, next_mean_var = model.encode(obs[j+1])
@@ -237,7 +239,7 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
         train_loss = 0
 
         iterator = tqdm.tqdm(train_loader, desc=f'Epoch {epoch}',
-                             disable=args.silent)
+                            disable=args.silent)
         for batch_idx, data_batch in enumerate(iterator):
             model.train()
             data_batch = [tensor.to(device) for tensor in data_batch]
@@ -258,7 +260,6 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
 
             loss = 0.0
             n_examples = 0
-
             for j in range(obs.shape[0] - 1):
                 state, mean_var = model.encode(obs[j])
                 next_state, next_mean_var = model.encode(obs[j+1])

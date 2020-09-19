@@ -437,16 +437,6 @@ class CausalTransitionModelLSTM(nn.Module):
 
         return parameters
 
-    def transition(self, state, action, hidden):
-        encoded_action = self.action_encoder(action)
-        encoded_state = self.obs_encoder(state)
-        x = torch.cat((encoded_state, encoded_action), dim = 1)
-        x = x.unsqueeze(0)
-        x, hidden = self.transition_nets(x, hidden)
-        x = x.squeeze(0)
-        x = self.transition_linear(x)
-        return x, hidden
-
     def encoder_parameters(self):
         return self.encoder.parameters()
 
