@@ -299,7 +299,7 @@ def train(max_epochs, model_file, lr, train_encoder=True, train_decoder=True,
         for batch_idx, data_batch in enumerate(iterator):
             model.train()
             data_batch = [tensor.to(device) for tensor in data_batch]
-            obs, action, next_obs = data_batch
+            obs, action, next_obs, _, _ = data_batch
 
             optimizer.zero_grad()
 
