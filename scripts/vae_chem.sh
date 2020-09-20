@@ -1,5 +1,5 @@
 #!/bin/bash
-source ../torch/bin/activate
+source ../modular_central/torch/bin/activate
 num_obj=$1
 num_colors=$2
 seed=$3
@@ -11,12 +11,12 @@ time=$8
 edge=$9
 if [ -z "$9" ]
 then
-	save_folder=vae-$num_obj-$num_colors-$max_steps-$movement-$seed-$contrastive_loss-$time
+	save_folder=latest_models/vae-$num_obj-$num_colors-$max_steps-$movement-$seed-$contrastive_loss-$time
 	dataset1=data/ColorChanging${time}RL_$num_obj-$num_colors-$max_steps-$movement-train-$seed.h5
 	dataset2=data/ColorChanging${time}RL_$num_obj-$num_colors-$max_steps-$movement-test-$seed.h5
 	dataset3=data/ColorChanging${time}RL_$num_obj-$num_colors-$max_steps-$movement-valid-$seed.h5
 else
-	save_folder=vae-$num_obj-$num_colors-$edge-$max_steps-$movement-$seed-$contrastive_loss-$time
+	save_folder=latest_models/vae-$num_obj-$num_colors-$edge-$max_steps-$movement-$seed-$contrastive_loss-$time
 	dataset1=data/ColorChanging${time}RL_$num_obj-$num_colors-$edge-$max_steps-$movement-train-$seed.h5
 	dataset2=data/ColorChanging${time}RL_$num_obj-$num_colors-$edge-$max_steps-$movement-test-$seed.h5
 	dataset3=data/ColorChanging${time}RL_$num_obj-$num_colors-$edge-$max_steps-$movement-valid-$seed.h5
@@ -38,7 +38,7 @@ then
 	--eval-dataset $dataset2 \
 	--embedding-dim-per-object 32 --num-objects $num_obj --action-dim $num_colors  \
 	--valid-dataset $dataset3 \
-	--save-folder $save_folder_ --batch-size 512 --seed 1 \
+	--save-folder $save_folder_ --batch-size 512 --seed $idx \
 	--epochs 100 --pretrain-epochs 100 --predict-diff --contrastive --vae | tee -a "$save_folder_/train.log"
 
 	
@@ -49,7 +49,7 @@ else
 	--eval-dataset $dataset2 \
 	--embedding-dim-per-object 32 --num-objects $num_obj --action-dim $num_colors  \
 	--valid-dataset $dataset3 \
-	--save-folder $save_folder_ --batch-size 512 --seed 1 \
+	--save-folder $save_folder_ --batch-size 512 --seed $idx \
 	--epochs 100 --pretrain-epochs 100 --predict-diff --vae | tee -a "$save_folder_/train.log"
 fi
 
