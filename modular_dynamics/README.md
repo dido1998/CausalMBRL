@@ -5,7 +5,7 @@ This implementation mirrors the implementations of `nn.LSTM` and `nn.GRU` in PyT
 
 ## Installation
 ```
-git clone https://github.com/dido1998/modular_dynamics.git
+git clone https://github.com/dido1998/modular_central.git
 cd modular_dynamics
 pip install -e .
 ```

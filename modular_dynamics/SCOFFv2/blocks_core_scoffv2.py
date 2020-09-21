@@ -57,7 +57,8 @@ class BlocksCore(nn.Module):
                 num_rules = None,
                 rule_time_steps = None,
                 application_option = 3,
-                rule_selection = 'gumble'
+                rule_selection = 'gumble',
+                rule_dim = 32,
                 ):
         super(BlocksCore, self).__init__()
         self.nhid = nhid
@@ -76,6 +77,7 @@ class BlocksCore(nn.Module):
         self.ninp=ninp
         self.set_transformer = perm_inv
         self.n_templates = n_templates
+        self.iatt_log = None
 
         print('topk is', self.topkval)
         print('bs in', self.block_size_in)
@@ -102,7 +104,7 @@ class BlocksCore(nn.Module):
 
 
         self.version = version
-        if self.version:
+        if self.version == 1:
             self.att_out = self.block_size_out
             print('Using version 1 att_out is', self.att_out)
             self.inp_att = MultiHeadAttention(n_head=1, d_model_read=self.block_size_out,
@@ -111,6 +113,14 @@ class BlocksCore(nn.Module):
                                            num_blocks_write=num_blocks_in + 1, residual=False,
                                            topk=self.num_blocks_in + 1,  n_templates=1, share_comm=False, share_inp=share_inp, grad_sparse=False, skip_write=True)
 
+        elif self.version == 2:
+             self.att_out = attention_out
+             print('Using version 2 att_out is', self.att_out)
+             d_v = self.att_out#//self.inp_heads
+             self.inp_att = MultiHeadAttention(n_head=1, d_model_read=self.block_size_out,
+                                            d_model_write=ninp, d_model_out=self.att_out,
+                                            d_k=64, d_v=d_v, num_blocks_read=num_blocks_out, num_blocks_write=1, residual=False,
+                                            dropout=0.1, topk=topkval, n_templates=1, share_comm=False, share_inp=share_inp, grad_sparse=False, skip_write=True, flag=True)
         else:
             self.att_out = attention_out
             print('Using version 0 att_out is', self.att_out)
@@ -140,7 +150,7 @@ class BlocksCore(nn.Module):
             print('Rule Time Steps:' + str(rule_config['rule_time_steps']))
             self.rule_time_steps = rule_config['rule_time_steps']
             self.rule_network = RuleNetwork(self.block_size_out, num_blocks_out, num_rules = rule_config['num_rules'],
-                rule_dim = rule_config['rule_emb_dim'], query_dim = rule_config['rule_query_dim'],
+                rule_dim = rule_dim, query_dim = rule_config['rule_query_dim'],
                 value_dim = rule_config['rule_value_dim'], key_dim = rule_config['rule_key_dim'],
                 num_heads = rule_config['rule_heads'], dropout = rule_config['rule_dropout'],
                 design_config = design_config).to(device)
@@ -219,7 +229,7 @@ class BlocksCore(nn.Module):
                  [_input, torch.zeros_like(_input[:, 0:1, :])], dim=1
              )
 
-        if self.version:
+        if self.version == 1:
              input_to_attention = [_process_input(_input) for _input in
                           torch.chunk(inp_use, chunks=self.num_blocks_out, dim=1)
                          ]
@@ -238,6 +248,14 @@ class BlocksCore(nn.Module):
 
              inp_use = inp_use.reshape((inp_use.shape[0], self.att_out * self.num_blocks_out))
 
+        elif self.version == 2:
+             inp_use = inp_use.reshape((inp_use.shape[0], self.num_blocks_in, self.ninp))
+             batch_size = inp.shape[0]
+             inp_use, iatt, _ = self.inp_att(hx.reshape((hx.shape[0], self.num_blocks_out, self.block_size_out)), inp_use, inp_use)
+             iatt = iatt.reshape((self.inp_heads, sz_b, iatt.shape[1], iatt.shape[2]))
+             iatt = iatt.mean(0)
+             self.iatt_log = iatt
+             inp_use = inp_use.reshape((inp_use.shape[0], self.att_out*self.num_blocks_out))
         else:
              #use attention here.
              inp_use = inp_use.reshape((inp_use.shape[0], self.num_blocks_in, self.block_size_in))
@@ -297,7 +315,7 @@ class BlocksCore(nn.Module):
             #encoder_input = encoder_input.reshape((hx_new.shape[0], self.num_blocks_out, self.block_size_out))
             for r in range(self.rule_time_steps):
                 rule_, entropy_ = self.rule_network(hx_new, message_to_rule_network = message_to_rule_network)
-                entropy += entropy_ 
+                entropy += entropy_
                 hx_new = rule_ + hx_new
             hx_new = hx_new.reshape((hx_new.shape[0], self.nhid))
 
@@ -332,7 +350,7 @@ class BlocksCore(nn.Module):
         if self.set_transformer:
              hx = hx.reshape((hx.shape[0], self.num_blocks_out, self.block_size_out)).reshape((hx.shape[0]*self.num_blocks_out, self.block_size_out))
              hx = self.set(hx).reshape((batch_size, self.num_blocks_out, self.block_size_out)).reshape(batch_size, self.nhid)
-        
+
         #hx = Identity().apply(hx)
         return hx, cx, mask, block_mask, temp_attention, entropy
 

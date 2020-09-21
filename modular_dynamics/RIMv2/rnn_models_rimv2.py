@@ -8,7 +8,7 @@ import time
 from utilities.GroupLinearLayer import GroupLinearLayer
 from utilities.sparse_grad_attn import blocked_grad
 
-from .blocks_core_rim import BlocksCore
+from .blocks_core_rimv2 import BlocksCore
 
 class RNNModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
@@ -16,7 +16,7 @@ class RNNModel(nn.Module):
     def __init__(self, rnn_type, ntoken, ninp, nhid, nlayers, dropout=0.5, tie_weights=False, use_cudnn_version=True,
                  use_adaptive_softmax=False, cutoffs=None, discrete_input=False, num_blocks=[6], topk=[4], do_gru=False,
                  use_inactive=False, blocked_grad=False, step_att=True,  layer_dilation = -1, block_dilation = -1, num_modules_read_input=2,
-                 num_rules = 0, rule_time_steps = 0, application_option = 3, attention_out=340, version=1, rule_selection = 'gumble'):
+                 num_rules = 0, rule_time_steps = 0, application_option = 3, attention_out=340, version=1, rule_selection = 'gumble', rule_dim = 32):
 
         super(RNNModel, self).__init__()
 
@@ -64,14 +64,15 @@ class RNNModel(nn.Module):
 
         print("Dropout rate", dropout)
 
+
         for i in range(nlayers):
             if i==0:
                 if False:
-                    self.bc_lst.append(BlocksCore(ninp + nhid[i],nhid[i], num_blocks_in[i], num_blocks[i], topk[i], step_att=step_att, version=version, attention_out=attention_out, do_gru=do_gru, num_modules_read_input=num_modules_read_input, num_rules = num_rules, rule_time_steps = rule_time_steps, application_option = application_option, rule_selection = rule_selection))
+                    self.bc_lst.append(BlocksCore(ninp + nhid[i],nhid[i], num_blocks_in[i], num_blocks[i], topk[i], step_att=step_att, version=version, attention_out=attention_out, do_gru=do_gru, num_modules_read_input=num_modules_read_input, num_rules = num_rules, rule_time_steps = rule_time_steps, application_option = application_option, rule_selection = rule_selection, rule_dim = rule_dim))
                 else:
-                    self.bc_lst.append(BlocksCore(ninp,nhid[i], num_blocks_in[i], num_blocks[i], topk[i], step_att=step_att, version=version, attention_out=attention_out, do_gru=do_gru, num_modules_read_input=num_modules_read_input, num_rules = num_rules, rule_time_steps = rule_time_steps, application_option = application_option, rule_selection = rule_selection))
+                    self.bc_lst.append(BlocksCore(ninp,nhid[i], num_blocks_in[i], num_blocks[i], topk[i], step_att=step_att, version=version, attention_out=attention_out, do_gru=do_gru, num_modules_read_input=num_modules_read_input, num_rules = num_rules, rule_time_steps = rule_time_steps, application_option = application_option, rule_selection = rule_selection, rule_dim = rule_dim))
             else:
-                self.bc_lst.append(BlocksCore(nhid[i-1],nhid[i], num_blocks_in[i], num_blocks[i], topk[i], step_att=step_att, version=version, attention_out=attention_out, do_gru=do_gru, num_modules_read_input=num_modules_read_input, num_rules = num_rules, rule_time_steps = rule_time_steps, application_option = application_option, rule_selection = rule_selection))
+                self.bc_lst.append(BlocksCore(nhid[i-1],nhid[i], num_blocks_in[i], num_blocks[i], topk[i], step_att=step_att, version=version, attention_out=attention_out, do_gru=do_gru, num_modules_read_input=num_modules_read_input, num_rules = num_rules, rule_time_steps = rule_time_steps, application_option = application_option, rule_selection = rule_selection, rule_dim = rule_dim))
         for i in range(nlayers - 1):
             self.dropout_lst.append(nn.Dropout(dropout))
 
@@ -118,7 +119,7 @@ class RNNModel(nn.Module):
             if calc_mask:
                 masks = [[] for _ in range(self.nlayers)]
                 sample_masks = [[] for _ in range(self.nlayers)]
-            entropy = 0 
+            entropy = 0
             for idx_layer in range(self.nlayers):
 
                 output = []
@@ -128,10 +129,10 @@ class RNNModel(nn.Module):
                 for idx_step in range(input.shape[0]):
                     if idx_step % self.layer_dilation[idx_layer] == 0:
                         if idx_step % self.block_dilation[idx_layer] == 0:
-                            hx, cx, mask, entropy_ = self.bc_lst[idx_layer](layer_input[idx_step], hx, cx, idx_step, do_block = True, message_to_rule_network = message_to_rule_network)
+                            hx, cx, mask, entropy_ = self.bc_lst[idx_layer](layer_input[idx_step], hx, cx, idx_step, do_block = True, message_to_rule_network = message_to_rule_network[idx_step] if message_to_rule_network is not None else None)
                             entropy += entropy_
                         else:
-                            hx, cx, mask, entropy_ = self.bc_lst[idx_layer](layer_input[idx_step], hx, cx, idx_step, do_block = False, message_to_rule_network = message_to_rule_network)
+                            hx, cx, mask, entropy_ = self.bc_lst[idx_layer](layer_input[idx_step], hx, cx, idx_step, do_block = False, message_to_rule_network = message_to_rule_network[idx_step] if message_to_rule_network is not None else None)
                             entropy += entropy_
                     if idx_layer < self.nlayers - 1:
                         if self.use_inactive:

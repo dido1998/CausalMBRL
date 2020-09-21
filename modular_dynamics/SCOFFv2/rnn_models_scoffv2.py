@@ -5,7 +5,7 @@ from torch import nn
 from torch.nn import functional as F
 from utilities.attention import MultiHeadAttention
 from utilities.set_transformer import SetTransformer
-from .blocks_core_scoff import BlocksCore
+from .blocks_core_scoffv2 import BlocksCore
 import matplotlib.pyplot as plt
 from utilities.invariant_modules import PMA
 
@@ -29,7 +29,7 @@ class RNNModel(nn.Module):
                  use_gru=False, do_rel=False ,num_modules_read_input=2, inp_heads=1,
                  device = None, memory_slots= 4, memory_head_size=16,
                  num_memory_heads=4, attention_out=512, version=1, step_att=True,
-                 num_rules = 0, rule_time_steps = 0, perm_inv = True, application_option = 3, use_dropout = True, rule_selection = 'gumble'):
+                 num_rules = 0, rule_time_steps = 0, perm_inv = True, application_option = 3, use_dropout = True, rule_selection = 'gumble', rule_dim = 32):
 
         super(RNNModel, self).__init__()
         self.device = device
@@ -79,6 +79,7 @@ class RNNModel(nn.Module):
         self.bc_lst = None
         self.sigmoid = nn.Sigmoid()
         self.decoder = None
+        self.rule_dim = rule_dim
 
         self.rule_selection = rule_selection
 
@@ -154,13 +155,13 @@ class RNNModel(nn.Module):
                 bc_lst.append(BlocksCore(ninp, nhid, 1, num_blocks, topk, memorytopk, step_att, num_modules_read_input, inp_heads, do_gru=use_gru,
                                          do_rel=do_rel, perm_inv=perm_inv, device=device, n_templates=n_templates, share_inp=share_inp, share_comm=share_comm, memory_mlp=memory_mlp,
                                          memory_slots=memory_slots,num_memory_heads=num_memory_heads,memory_head_size=memory_head_size, attention_out=attention_out,
-                                         version=version, num_rules = self.num_rules, rule_time_steps = self.rule_time_steps, application_option = self.application_option, rule_selection = self.rule_selection))
+                                         version=version, num_rules = self.num_rules, rule_time_steps = self.rule_time_steps, application_option = self.application_option, rule_selection = self.rule_selection, rule_dim = self.rule_dim))
                 self.bc_lst = nn.ModuleList(bc_lst)
             else:
                 bc_lst.append(BlocksCore(nhid + ninp, nhid, 1, num_blocks, topk, memorytopk, step_att, num_modules_read_input, inp_heads, do_gru=use_gru,
                                          do_rel=do_rel, perm_inv=perm_inv, device=device, n_templates=n_templates, share_inp=share_inp, share_comm=share_comm, memory_mlp=memory_mlp,
                                          memory_slots=memory_slots,num_memory_heads=num_memory_heads,memory_head_size=memory_head_size, attention_out=attention_out,
-                                         version=version, num_rules = self.num_rules, rule_time_steps = self.rule_time_steps, rule_selection = self.rule_selection))
+                                         version=version, num_rules = self.num_rules, rule_time_steps = self.rule_time_steps, rule_selection = self.rule_selection, rule_dim = self.rule_dim))
                 self.bc_lst = nn.ModuleList(bc_lst)
 
         if True:
@@ -218,7 +219,7 @@ class RNNModel(nn.Module):
                     self.bc_lst[idx_layer].reset_relational_memory(input.shape[1])
                 for idx_step in range(input.shape[0]):
                     hx, cx, mask, bmask, temp_attn, entropy_ = self.bc_lst[idx_layer](layer_input[idx_step], hx, cx, idx_step,
-                                                                 do_print=do_print, message_to_rule_network = message_to_rule_network)
+                                                                 do_print=do_print, message_to_rule_network = message_to_rule_network[idx_step] if message_to_rule_network is not None else None)
                     entropy += entropy_
                     output.append(hx)
                     masklst.append(mask)
