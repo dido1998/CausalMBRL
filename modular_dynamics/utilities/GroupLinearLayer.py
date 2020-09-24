@@ -1,28 +1,31 @@
 
 import torch
 import torch.nn as nn
-
+import math
 class GroupLinearLayer(nn.Module):
-    """Container module with an encoder, a recurrent module, and a decoder."""
-
-    def __init__(self, din, dout, num_blocks):
-        super(GroupLinearLayer, self).__init__()
-
-        self.w = nn.Parameter(0.01 * torch.randn(num_blocks,din,dout))
-
-    def forward(self,x):
-        x = x.permute(1,0,2)
-        x = torch.bmm(x,self.w)
-        return x.permute(1,0,2)
-
-if __name__ == "__main__":
-    
-    GLN = GroupLinearLayer()
-
-    x = torch.randn(64,12,25)
-
-    print(GLN(x).shape)
-
-    for p in GLN.parameters():
-        print(p.shape)
+ def __init__(self, din, dout, num_blocks, bias=True, a = None):
+     super(GroupLinearLayer, self).__init__()
+     self.nb = num_blocks
+     #din = din // num_blocks
+     #dout = dout // num_blocks
+     self.dout = dout
+     if a is None:
+         a = 1. / math.sqrt(dout)
+     self.weight = nn.Parameter(torch.FloatTensor(num_blocks,din,dout).uniform_(-a,a))
+     self.bias = bias
+     if bias is True:
+         self.bias = nn.Parameter(torch.FloatTensor(num_blocks,dout).uniform_(-a,a))
+         #self.bias = nn.Parameter(torch.zeros(dout*num_blocks))
+     else:
+         self.bias = None
+ def forward(self,x):
+     ts,bs,m = x.shape
+     #x = x.reshape((ts*bs, self.nb, m//self.nb))
+     x = x.permute(1,0,2)
+     x = torch.bmm(x,self.weight)
+     x = x.permute(1,0,2)
+     if not self.bias is None:
+         x = x + self.bias
+     #x = x.reshape((ts, bs, self.dout*self.nb))
+     return x
 

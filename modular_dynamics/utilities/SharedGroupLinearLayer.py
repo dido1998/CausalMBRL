@@ -9,9 +9,10 @@ class SharedGroupLinearLayer(nn.Module):
     def __init__(self, din, dout, n_templates):
         super(SharedGroupLinearLayer, self).__init__()
 
-        self.w = nn.ParameterList([nn.Parameter(0.01 * torch.randn(din,dout)) for _ in range(0,n_templates)])
+        self.w = nn.ModuleList([nn.Linear(din, dout, bias = False) for _ in range(0,n_templates)])
         self.gll_write = GroupLinearLayer(dout,16, n_templates)
         self.gll_read = GroupLinearLayer(din,16,1)
+        #self.register_buffer(self.w)
 
     def forward(self,x):
         #input size (bs,num_blocks,din), required matching num_blocks vs n_templates
@@ -20,8 +21,8 @@ class SharedGroupLinearLayer(nn.Module):
         x= x.reshape(k*bs_size,-1)
         x_read = self.gll_read((x*1.0).reshape((x.shape[0], 1, x.shape[1])))
         x_next = []
-        for weight in self.w:
-            x_next_l = torch.matmul(x,weight)
+        for mod in self.w:
+            x_next_l = mod(x)
             x_next.append(x_next_l)
         x_next = torch.stack(x_next,1) #(k*bs,n_templates,dout)
         

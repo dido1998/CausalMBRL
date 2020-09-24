@@ -118,42 +118,30 @@ class RuleNetwork(nn.Module):
 		self.softmax = []
 		self.masks = []
 		import math
-		rule_dim = rule_dim
-		print('RULE DIM:' + str(rule_dim))
-		w =  0.01 * torch.randn(1, num_rules, rule_dim).to(self.device)
+		w =  0.01 * torch.randn(1, num_rules, hidden_dim).to(self.device)
 
-
-		self.dummy_linear_transform_rule = nn.Linear(rule_dim, hidden_dim)
 		self.rule_embeddings = nn.Parameter(w)
 		self.biases = np.zeros((num_rules, num_variables))
 		self.use_biases = True
 		self.transform_src = nn.Linear(300, 60)
 
-		self.dummy_rule_selector = SelectAttention(3, rule_dim, d_k = 32, num_read = 1, num_write = num_rules)
-
 		self.dropout = nn.Dropout(p = 0.5)
 
-		
+		self.positional_encoding = PositionalEncoding(hidden_dim)
 
 		self.transform_rule = nn.Linear(rule_dim, hidden_dim)
 		if hidden_dim % 4 != 0:
 			num_heads = 2
-		try:
-			self.positional_encoding = PositionalEncoding(hidden_dim)
-			self.transformer_layer = nn.TransformerEncoderLayer(d_model = hidden_dim, nhead = num_heads, dropout = 0.5)
+		self.transformer_layer = nn.TransformerEncoderLayer(d_model = hidden_dim, nhead = num_heads, dropout = 0.5)
 
-			self.transformer = nn.TransformerEncoder(self.transformer_layer, 3)
-			self.multihead_attention = nn.MultiheadAttention(hidden_dim, 4)
+		self.transformer = nn.TransformerEncoder(self.transformer_layer, 3)
 
-		except:
-			pass
+		self.multihead_attention = nn.MultiheadAttention(hidden_dim, 4)
 
-		
-
-		self.variable_rule_select = SelectAttention(rule_dim, hidden_dim , d_k=32, num_read = num_rules, num_write = num_variables)
+		self.variable_rule_select = SelectAttention(hidden_dim, hidden_dim , d_k=32, num_read = num_rules, num_write = num_variables)
 
 		self.encoder_transform = nn.Linear(num_variables * hidden_dim, hidden_dim)
-		self.rule_mlp = GroupMLP(rule_dim + hidden_dim, hidden_dim, num_rules)
+		self.rule_mlp = GroupMLP(2*hidden_dim, hidden_dim, num_rules)
 		self.rule_linear = GroupLinearLayer(rule_dim + hidden_dim, hidden_dim, num_rules)
 		self.interaction_mlp = MLP(2*hidden_dim, hidden_dim)
 		self.variables_select = MultiHeadAttention(n_head=4, d_model_read= hidden_dim, d_model_write = hidden_dim , d_model_out = hidden_dim,  d_k=32, d_v=32, num_blocks_read = 1, num_blocks_write = num_variables, topk = 3, grad_sparse = False)
@@ -203,6 +191,7 @@ class RuleNetwork(nn.Module):
 		#if not self.design_config['grad']:
 		if str(self.design_config['application_option']).split('.')[1] == '0':
 			hidden = hidden.detach()
+
 		
 		if False and message_to_rule_network.ndim != hidden.ndim:
 			print('dimension of hidden state and message to rule network dont match. Expected both to be 3')
@@ -217,23 +206,6 @@ class RuleNetwork(nn.Module):
 		#print(rule_emb)
 		rule_emb = rule_emb_orig
 
-
-		if message_to_rule_network is not None and str(self.design_config['application_option']).split('.')[2] == '-1':
-			message_to_rule_network = message_to_rule_network.unsqueeze(1)
-			scores = self.dummy_rule_selector(message_to_rule_network, rule_emb)
-			scores = scores.squeeze(1)
-			if self.training:
-				mask = torch.nn.functional.gumbel_softmax(scores, dim = 1, tau = 0.1, hard = True)
-			else:
-				mask = ArgMax().apply(scores)
-			self.rule_activation.append(torch.argmax(mask, dim = 1).detach().cpu().numpy())
-			self.variable_activation.append(torch.zeros(torch.argmax(mask, dim = 1).size()).int().detach().cpu().numpy())
-
-			selected_rule = rule_emb * mask.unsqueeze(-1)
-			selected_rule = torch.sum(selected_rule, dim = 1).unsqueeze(1)
-			selected_rule = self.dummy_linear_transform_rule(selected_rule)
-			return selected_rule, 0
-
 		if False:
 			extra_input = message_to_rule_network.detach()
 			#extra_input = self.transform_src(extra_input)
@@ -247,9 +219,8 @@ class RuleNetwork(nn.Module):
 			else:
 				read_input = torch.cat((extra_input, hidden), dim = 1)
 		else:
-			if self.design_config['application_option'] == 0 or self.design_config['application_option'] == 1 or str(self.design_config['application_option']).split('.')[2] == '0':
-				start_index = [0, num_variables]
-				transformer_input = torch.cat((hidden, rule_emb), dim = 1)
+			start_index = [0, num_variables]
+			transformer_input = torch.cat((hidden, rule_emb), dim = 1)
 
 		if self.design_config['application_option'] == 0 or self.design_config['application_option'] == 1 or str(self.design_config['application_option']).split('.')[2] == '0':
 			
@@ -265,9 +236,7 @@ class RuleNetwork(nn.Module):
 			scores = scores.permute(0, 2, 1)
 			transformer_out  = transformer_out.transpose(0, 1)
 		elif str(self.design_config['application_option']).split('.')[2] == '1':
-
 			#print('mha')
-			
 			scores= self.variable_rule_select(rule_emb, hidden)
 
 
@@ -276,7 +245,7 @@ class RuleNetwork(nn.Module):
 			biases_mean = torch.sum(biases, dim = 1).unsqueeze(-1)
 			biases = biases / biases_mean
 			biases = biases.unsqueeze(0).repeat(scores.size(0), 1, 1)
-			if False:
+			if self.use_biases:
 				scores = torch.clamp(scores, -10., 10.)
 				scores = scores / biases
 			mask = torch.nn.functional.gumbel_softmax(scores.reshape(batch_size, -1), dim = 1, tau = 1.0, hard = True)
@@ -364,11 +333,12 @@ class RuleNetwork(nn.Module):
 			#if self.training:
 			#	hook_hidden.mask = variable_mask
 			# using gumbel for training but printing argmax
-			rule_mask_print = torch.sum(mask, dim = 1).detach()
-			variable_mask_print = torch.sum(mask, dim = 2).detach()
+			rule_mask_print = torch.sum(mask, dim = 1).unsqueeze(-1).detach()
+			variable_mask_print = torch.sum(mask, dim = 2).unsqueeze(-1).detach()
 
 			self.rule_activation.append(torch.argmax(rule_mask_print, dim = 1).detach().cpu().numpy())
 			self.variable_activation.append(torch.argmax(variable_mask_print, dim = 1).detach().cpu().numpy())
+
 			selected_variable = torch.sum(hidden * variable_mask, dim = 1).unsqueeze(1).repeat(1, mask.size(2), 1)
 			rule_mlp_input = torch.cat((rule_emb_orig, selected_variable), dim = 2)
 			rule_mlp_output = self.rule_mlp(rule_mlp_input)
@@ -386,8 +356,8 @@ class RuleNetwork(nn.Module):
 			#if self.training:
 			#	hook_hidden.mask = variable_mask
 			# using gumbel for training but printing argmax
-			rule_mask_print = torch.sum(mask, dim = 1).detach()
-			variable_mask_print = torch.sum(mask, dim = 2).detach()
+			rule_mask_print = torch.sum(mask, dim = 1).unsqueeze(-1).detach()
+			variable_mask_print = torch.sum(mask, dim = 2).unsqueeze(-1).detach()
 
 			self.rule_activation.append(torch.argmax(rule_mask_print, dim = 1).detach().cpu().numpy())
 			self.variable_activation.append(torch.argmax(variable_mask_print, dim = 1).detach().cpu().numpy())
@@ -417,7 +387,7 @@ class RuleNetwork(nn.Module):
 			variable_mask = torch.sum(mask, dim = 2).unsqueeze(-1)
 			rule_mask = torch.sum(mask, dim = 1).unsqueeze(-1)
 
-			selected_variable = torch.sum(hidden * variable_mask.float(), dim = 1).unsqueeze(1).repeat(1, mask.size(2), 1)
+			selected_variable = torch.sum(hidden * variable_mask, dim = 1).unsqueeze(1).repeat(1, mask.size(2), 1)
 			rule_mlp_input = torch.cat((rule_emb_orig, selected_variable), dim = 2)
 			rule_mlp_output = self.rule_mlp(rule_mlp_input)
 			rule_mlp_output = torch.sum(rule_mlp_output * rule_mask, dim = 1).unsqueeze(1)

@@ -2,16 +2,32 @@ import torch
 import torch.nn as nn
 import numpy as np
 import random
+import math
 from .sparse_attn import Sparse_attention
 import torch.nn.functional as F
 from .GroupLinearLayer import GroupLinearLayer
 from .SharedGroupLinearLayer import SharedGroupLinearLayer
 from .sparse_grad_attn import Sparse_grad_attention
 
+
+class SelectAttention(nn.Module):
+    """docstring for SelectAttention"""
+    def __init__(self, d_read, d_write, d_k = 16, num_read = 5, num_write = 5):
+        super(SelectAttention, self).__init__()
+        self.gll_write = nn.Linear(d_write,d_k)
+        self.gll_read = nn.Linear(d_read,d_k)
+        self.temperature = math.sqrt(d_k)
+
+    def forward(self, q, k):
+        read = self.gll_read(q)
+        write = self.gll_write(k)
+
+        return torch.bmm(read, write.permute(0, 2, 1)) / self.temperature
+
 class ScaledDotProductAttention(nn.Module):
     ''' Scaled Dot-Product Attention '''
 
-    def __init__(self, temperature, topk, grad_sparse, attn_dropout=0.1):
+    def __init__(self, temperature, topk, grad_sparse, attn_dropout=0.1, flag=False):
         super().__init__()
         self.temperature = temperature
         #self.dropout = nn.Dropout(attn_dropout)
@@ -20,6 +36,7 @@ class ScaledDotProductAttention(nn.Module):
         #print('top 2 sparsity')
         self.topk = topk
         self.sa = Sparse_attention(top_k=topk) #k=2
+        self.flag = flag
         #self.sga = Sparse_grad_attention(top_k=2)
 
     def forward(self, q, k, v, mask=None):
@@ -32,27 +49,22 @@ class ScaledDotProductAttention(nn.Module):
         if mask is not None:
             attn = attn.masked_fill(mask, -np.inf)
 
-        #attn = self.dropout(attn)
-        attn = self.softmax(attn)
-        #if random.uniform(0,1) < 0.0001 or attn[0].max() > 0.8:
-        #    print('attn0', attn[0])
+        if self.flag:
+            n_b,k_1,k_2 = attn.size()
+            attn = self.softmax(attn.permute(0,2,1)).reshape(n_b,k_1,k_2)
+        else:
+            attn = self.softmax(attn)
 
-        #sparse_attn = attn*0.0
-        #sparse_attn[:,0,0] += 1.0
-        #sparse_attn[:,1,1] += 1.0
-        #sparse_attn[:,2,2] += 1.0
-        #attn = sparse_attn*1.0
-
-        #extra_loss = 0.0
-        #for k in range(0,3):
-        #    extra_loss += 0.0001 * ((attn[:,k,k] - 1.0)**2).sum()
         extra_loss = 0.0
 
         use_sparse = True#False
 
         if use_sparse:
             mb, ins, outs = attn.shape[0], attn.shape[1], attn.shape[2]
-            sparse_attn = attn.reshape((mb*ins, outs))
+            if self.flag:
+                sparse_attn = attn.permute(0,2,1).reshape(mb*outs, ins)
+            else:
+                sparse_attn = attn.reshape((mb*ins, outs))
             #print('sparse attn shape 1', sparse_attn.shape)
             #sga = Sparse_grad_attention(2)
             if self.grad_sparse:
@@ -60,7 +72,10 @@ class ScaledDotProductAttention(nn.Module):
                 sparse_attn = sga(sparse_attn)
             else:
                 sparse_attn = self.sa(sparse_attn)
-            sparse_attn = sparse_attn.reshape((mb,ins,outs))
+            if self.flag:
+                sparse_attn = sparse_attn.reshape(mb, outs, ins).permute(0, 2, 1)
+            else:
+                sparse_attn = sparse_attn.reshape((mb,ins,outs))
             attn = sparse_attn*1.0
 
         output = torch.bmm(attn, v)
@@ -71,7 +86,7 @@ import torch.nn.functional as F
 class MultiHeadAttention(nn.Module):
     ''' Multi-Head Attention module '''
 
-    def __init__(self, n_head, d_model_read, d_model_write, d_model_out, d_k, d_v, num_blocks_read, num_blocks_write, topk, grad_sparse,n_templates ,share_inp,share_comm, residual=True, dropout=0.1, skip_write=False):
+    def __init__(self, n_head, d_model_read, d_model_write, d_model_out, d_k, d_v, num_blocks_read, num_blocks_write, topk, grad_sparse,n_templates ,share_inp,share_comm, residual=True, dropout=0.1, skip_write=False, flag=False):
         super().__init__()
 
         self.n_head = n_head
@@ -105,7 +120,7 @@ class MultiHeadAttention(nn.Module):
         #nn.init.normal_(self.w_ks.weight, mean=0, std=np.sqrt(2.0 / (d_model + d_k)))
         #nn.init.normal_(self.w_vs.weight, mean=0, std=np.sqrt(2.0 / (d_model + d_v)))
 
-        self.attention = ScaledDotProductAttention(temperature=np.power(d_k, 0.5), topk=topk, grad_sparse=grad_sparse)
+        self.attention = ScaledDotProductAttention(temperature=np.power(d_k, 0.5), topk=topk, grad_sparse=grad_sparse, flag=flag)
         #self.layer_norm = nn.LayerNorm(d_model)
 
         self.gate_fc = nn.Linear(n_head * d_v, d_model_out)

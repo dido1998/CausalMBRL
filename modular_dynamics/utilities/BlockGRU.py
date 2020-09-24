@@ -67,6 +67,15 @@ class BlockGRU(nn.Module):
 
         return hnext, None
 
+class Identity(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input):
+        return input * 1.0
+    def backward(ctx, grad_output):
+        print(torch.sqrt(torch.sum(torch.pow(grad_output,2))))
+        print('-----------')
+        return grad_output * 1.0
+
 class SharedBlockGRU(nn.Module):
     """Dynamic sharing of parameters between blocks(RIM's)"""
 
@@ -126,16 +135,17 @@ class SharedBlockGRU(nn.Module):
         '''
 
         att = torch.nn.functional.gumbel_softmax(torch.bmm(h_read, write_key.permute(0, 2, 1)),  tau=0.5, hard=True)
-
         #att = att*0.0 + 0.25
 
-        #print('hnext shape before att', hnext.shape)
         hnext = torch.bmm(att, hnext)
+
         hnext = hnext.mean(dim=1)
         hnext = hnext.reshape((bs, self.k, self.m)).reshape((bs, self.k*self.m))
         #print('shapes', hnext.shape, cnext.shape)
 
         return hnext, att.data.reshape(bs,self.k,self.n_templates)
+
+
 
 if __name__ == "__main__":
 
