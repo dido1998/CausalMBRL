@@ -414,7 +414,7 @@ class CausalTransitionModelLSTM(nn.Module):
                 self.transition_nets =  RIM('cuda', 2 * self.hidden_dim, 600, 6, 4, rnn_cell = 'GRU', n_layers = 1, bidirectional = False)
                 self.transition_linear = nn.Linear(600, self.embedding_dim)
             elif scoff == True:
-                self.transition_nets = SCOFF('cuda', 2 * self.hidden_dim, 600, 4, 3, num_templates = 2, rnn_cell = 'GRU', n_layers = 1, bidirectional = False)
+                self.transition_nets = SCOFF('cuda', 2 * self.hidden_dim, 600, 4, 3, num_templates = 2, rnn_cell = 'GRU', n_layers = 1, bidirectional = False, version=1)
                 self.transition_linear = nn.Linear(600, self.embedding_dim)
             else:
                 self.transition_nets = nn.LSTM(2 * self.hidden_dim, 600)
