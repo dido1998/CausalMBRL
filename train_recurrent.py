@@ -136,7 +136,7 @@ if args.silent:
     handlers.append(logging.StreamHandler(sys.stdout))
 logging.basicConfig(level=logging.INFO, format='%(message)s', handlers=handlers)
 logger = logging.getLogger()
-print = logger.info
+#print = logger.info
 
 with open(meta_file, "wb") as f:
     pickle.dump({'args': args}, f)
@@ -182,7 +182,7 @@ def evaluate(model_file, valid_loader, train_encoder = True, train_decoder = Tru
             loss = 0.0
             n_examples = 0
 
-            
+            print(obs.shape[0])
 
             for j in range(obs.shape[0] - 1):
                 state, mean_var = model.encode(obs[j])
@@ -316,36 +316,36 @@ if args.contrastive:
     dataset = utils.LSTMDataset(
         hdf5_file=args.dataset, action_transform=OneHot(args.num_objects * args.action_dim))
     train_loader = data.DataLoader(
-        dataset, batch_size=5, shuffle=True, num_workers=args.num_workers)
+        dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
     valid_dataset = utils.LSTMDataset(
         hdf5_file=args.valid_dataset, action_transform=OneHot(args.num_objects * args.action_dim))
     valid_loader = data.DataLoader(
-        valid_dataset, batch_size=5, shuffle=True, num_workers=args.num_workers)
+        valid_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
     train(args.epochs, model_file, lr=args.lr, train_encoder=True, train_transition=True, train_decoder=False)
 else:
     dataset = utils.StateTransitionsDataset(
         hdf5_file=args.dataset, action_transform=OneHot(args.num_objects * args.action_dim))
     train_loader = data.DataLoader(
-        dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+        dataset, batch_size=512, shuffle=True, num_workers=args.num_workers)
     valid_dataset = utils.StateTransitionsDataset(
         hdf5_file=args.valid_dataset, action_transform=OneHot(args.num_objects * args.action_dim))
     valid_loader = data.DataLoader(
-        valid_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+        valid_dataset, batch_size=512, shuffle=True, num_workers=args.num_workers)
 
-    train(args.pretrain_epochs, model_file, lr=args.lr, train_encoder=True, train_transition=False, train_decoder=True)
+    #train(args.pretrain_epochs, model_file, lr=args.lr, train_encoder=True, train_transition=False, train_decoder=True)
 
     del dataset, train_loader, valid_loader, valid_dataset
     dataset = utils.LSTMDataset(
         hdf5_file=args.dataset, action_transform=OneHot(args.num_objects * args.action_dim))
     train_loader = data.DataLoader(
-        dataset, batch_size=5, shuffle=True, num_workers=args.num_workers)
+        dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
     valid_dataset = utils.LSTMDataset(
         hdf5_file=args.valid_dataset, action_transform=OneHot(args.num_objects * args.action_dim))
     valid_loader = data.DataLoader(
-        valid_dataset, batch_size=5, shuffle=True, num_workers=args.num_workers)
+        valid_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
-    train(args.epochs, model_file, lr=args.transit_lr, train_encoder=False, train_transition=True, train_decoder=False)
+    #train(args.epochs, model_file, lr=args.transit_lr, train_encoder=False, train_transition=True, train_decoder=False)
     train(args.finetune_epochs, finetune_file, lr=args.lr, train_encoder=True, train_decoder=True, train_transition=True)
 
 if args.eval_dataset is not None:
