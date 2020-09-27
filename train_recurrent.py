@@ -333,7 +333,7 @@ else:
     valid_loader = data.DataLoader(
         valid_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
-    #train(args.pretrain_epochs, model_file, lr=args.lr, train_encoder=True, train_transition=False, train_decoder=True)
+    train(args.pretrain_epochs, model_file, lr=args.lr, train_encoder=True, train_transition=False, train_decoder=True)
 
     del dataset, train_loader, valid_loader, valid_dataset
     dataset = utils.LSTMDataset(
