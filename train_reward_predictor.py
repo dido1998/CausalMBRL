@@ -38,6 +38,7 @@ parser.add_argument('--finetune', action='store_true', default=False,
                     help='Whether to use finetuned model')
 parser.add_argument('--random', action='store_true', default=False)
 parser.add_argument('--epochs', type=int, default=50)
+parser.add_argument('--recurrent', action = 'store_true')
 args_eval = parser.parse_args()
 
 def set_seed(seed):
@@ -53,8 +54,8 @@ def set_seed(seed):
 meta_file = args_eval.save_folder / 'metadata.pkl'
 if args_eval.finetune:
     model_file = args_eval.save_folder / 'finetuned_model.pt'
-    reward_model_file = args_eval.save_folder / 'finetuned_reward_model.pt'
-    log_file = args_eval.save_folder / 'finetuned_reward_log.txt' 
+    reward_model_file = args_eval.save_folder / 'finetune_reward_model.pt'
+    log_file = args_eval.save_folder / 'finetune_reward_log.txt' 
 elif args_eval.random:
     model_file = args_eval.save_folder / 'random_model.pt'
     reward_model_file = args_eval.save_folder / 'random_reward_model.pt'
@@ -101,21 +102,37 @@ print(f"Encoder: {args.encoder}")
 print(f"Num Objects: {args.num_objects}")
 print(f"Dataset: {args.dataset}")
 
-model = CausalTransitionModel(
+if not args_eval.recurrent:
+    model = CausalTransitionModel(
+        embedding_dim_per_object=args.embedding_dim_per_object,
+        hidden_dim=args.hidden_dim,
+        action_dim=args.action_dim,
+        input_dims=input_shape,
+        input_shape=input_shape,
+        modular=args.modular,
+        predict_diff=args.predict_diff,
+        vae=args.vae,
+        num_objects=args.num_objects,
+        encoder=args.encoder,
+        gnn=args.gnn,
+        multiplier=args.multiplier,
+        ignore_action=args.ignore_action,
+        copy_action=args.copy_action).to(device)
+
+else:
+    model = CausalTransitionModelLSTM(
     embedding_dim_per_object=args.embedding_dim_per_object,
     hidden_dim=args.hidden_dim,
     action_dim=args.action_dim,
-    input_dims=input_shape,
-    input_shape=input_shape,
+    input_dims=(3, 50, 50),
+    input_shape=(3, 50, 50),
     modular=args.modular,
     predict_diff=args.predict_diff,
     vae=args.vae,
     num_objects=args.num_objects,
-    encoder=args.encoder,
-    gnn=args.gnn,
-    multiplier=args.multiplier,
-    ignore_action=args.ignore_action,
-    copy_action=args.copy_action).to(device)
+    encoder=args.encoder, 
+    rim = args.rim,
+    scoff = args.scoff).to(device)
 
 num_enc = sum(p.numel() for p in model.encoder_parameters())
 num_dec = sum(p.numel() for p in model.decoder_parameters())

@@ -8,7 +8,7 @@ import gym
 import torch
 import torch.nn.functional as F
 
-from cswm.models.modules import CausalTransitionModel, RewardPredictor
+from cswm.models.modules import CausalTransitionModel, RewardPredictor, CausalTransitionModelLSTM
 
 from cswm import utils
 from cswm.utils import OneHot
@@ -68,8 +68,10 @@ def get_best_model_action(obs, target, action_space, model, reward_model):
 
         state, _ = model.encode(obs)
         state = state.view(state.shape[0], args.num_objects * args.embedding_dim_per_object)
+        #state = state.view(state.shape[0], 5 * 32 )
         target_state, _ = model.encode(target)
         target_state = target_state.view(target_state.shape[0], args.num_objects * args.embedding_dim_per_object)
+        #target_state = target_state.view(target_state.shape[0], 5 * 32)
 
         emb = torch.cat([state, target_state], dim=1)
 
@@ -87,10 +89,15 @@ def get_best_model_action_transition(state, target_state, action_space, model, r
     best_action = None
     state_out = None
 
+    hidden = (torch.zeros(1, state.size(0), 600).cuda(), 
+                torch.zeros(1, state.size(0), 600).cuda())
+
     for i in range(n):
         action = F.one_hot(torch.tensor(i).long(), num_classes=n).cuda().float().unsqueeze(0)
-        next_state = model.transition(state, action)
-
+        if not args_eval.recurrent:
+            next_state = model.transition(state, action)
+        else:
+            next_state, hidden= model.transition(state, action, hidden)
         emb = torch.cat([next_state.view(next_state.shape[0], args.num_objects * args.embedding_dim_per_object),
                          target_state.view(target_state.shape[0], args.num_objects * args.embedding_dim_per_object)],
                          dim = 1)
@@ -233,11 +240,15 @@ random_reward_model_file = args_eval.save_folder / 'random_reward_model.pt'
 model_file = args_eval.save_folder / 'model.pt'
 reward_model_file = args_eval.save_folder / 'reward_model.pt'
 
+
 with open(meta_file, 'rb') as f:
     args = pickle.load(f)['args']
 
 if 'ColorChanging' in args_eval.env_id:
-    graph_location = 'data/ColorChangingRL_'+str(args.num_objects)+'-'+str(args.action_dim)+'-'+args_eval.env_id.split('-')[-2]+'-Static-train-graph-'+str(args.dataset).split('.')[0].split('-')[-1]
+    if 'Time' not in args_eval.env_id:
+        graph_location = 'data/ColorChangingRL_'+str(args.num_objects)+'-'+str(args.action_dim)+'-'+args_eval.env_id.split('-')[-2]+'-Static-train-graph-'+str(args.dataset).split('.')[0].split('-')[-1]
+    else:
+        graph_location = 'data/ColorChangingRL_'+str(args.num_objects)+'-'+str(args.action_dim)+'--1-'+args_eval.env_id.split('-')[-2]+'-Static-train-graph-'+str(args.dataset).split('.')[0].split('-')[-1]
     print('graph location:' + str(graph_location))
 
 np.random.seed(args.seed)
@@ -256,27 +267,42 @@ print("Encoder: ", args.encoder)
 print("Num Objects: ", args.num_objects)
 print("Dataset: ", args.dataset)
 
-model = CausalTransitionModel(
+if not args_eval.recurrent:
+    model = CausalTransitionModel(
+            embedding_dim_per_object=args.embedding_dim_per_object,
+            hidden_dim=args.hidden_dim,
+            action_dim=args.action_dim,
+            input_dims=input_shape,
+            input_shape=input_shape,
+            modular=args.modular,
+            predict_diff=args.predict_diff,
+            vae=args.vae,
+            num_objects=args.num_objects,
+            encoder=args.encoder,
+            gnn=args.gnn,
+            multiplier=args.multiplier,
+            ignore_action=args.ignore_action,
+            copy_action=args.copy_action).cuda()
+else:
+    model = CausalTransitionModelLSTM(
         embedding_dim_per_object=args.embedding_dim_per_object,
         hidden_dim=args.hidden_dim,
         action_dim=args.action_dim,
-        input_dims=input_shape,
-        input_shape=input_shape,
+        input_dims=(3, 50, 50),
+        input_shape=(3, 50, 50),
         modular=args.modular,
         predict_diff=args.predict_diff,
         vae=args.vae,
         num_objects=args.num_objects,
-        encoder=args.encoder,
-        gnn=args.gnn,
-        multiplier=args.multiplier,
-        ignore_action=args.ignore_action,
-        copy_action=args.copy_action).cuda()
-
+        encoder=args.encoder, 
+        rim = args.rim,
+        scoff = args.scoff).cuda()
 num_enc = sum(p.numel() for p in model.encoder_parameters())
 num_dec = sum(p.numel() for p in model.decoder_parameters())
 num_tr = sum(p.numel() for p in model.transition_parameters())
 
 Reward_Model = RewardPredictor(args.embedding_dim_per_object * args.num_objects).cuda()
+#Reward_Model = RewardPredictor(32 * 5).cuda()
 
 model_name = '/'.join(str(args_eval.save_folder).split('/')[-2:])
 
