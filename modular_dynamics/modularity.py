@@ -169,9 +169,9 @@ class RIM(nn.Module):
 		if self.batch_first:
 			x = x.transpose(0, 1)
 		if self.rnn_cell == 'GRU':
-			return x, (new_hs, new_hs), entropy
+			return x, (new_hs, new_hs)
 		else:
-			return x, (new_hs, new_cs), entropy
+			return x, (new_hs, new_cs)
 
 class RIMv2(nn.Module):
 	def __init__(self, device,
@@ -475,7 +475,7 @@ class SCOFF(nn.Module):
 
 		if self.batch_first:
 			x = x.transpose(0, 1)
-		return x, (new_hs, new_cs), entropy
+		return x, (new_hs, new_cs)
 
 
 class SCOFFv2(nn.Module):

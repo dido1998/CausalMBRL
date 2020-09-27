@@ -1,5 +1,8 @@
 #!/bin/bash
 
+module load miniconda3
+source activate cswm-delayed
+
 num_obj=$1
 num_colors=$2
 seed=$3
@@ -22,16 +25,14 @@ else
 	dataset3=data/ColorChanging${time}RL_$num_obj-$num_colors-$edge-$max_steps-$movement-valid-$seed.h5
 fi
 truth=True
+save_folder="/home/sarthmit/scratch/C-SWM-delayed/"$save_folder
 
 rm -r "$save_folder-$idx"
-
 
 mkdir "$save_folder-$idx"
 
 
 touch "$save_folder-$idx/train.log"
-
-
 
 if [ $contrastive_loss == $truth ]
 then
@@ -41,7 +42,7 @@ then
 	--eval-dataset $dataset2 \
 	--embedding-dim-per-object 32 --num-objects $num_obj --action-dim $num_colors  \
 	--valid-dataset $dataset3 \
-	--save-folder $save_folder_ --batch-size 32 --seed 1 \
+	--save-folder $save_folder_ --batch-size 32 --seed $idx \
 	--epochs 100 --pretrain-epochs 100 --finetune-epochs 100 --predict-diff --rim --contrastive | tee -a "$save_folder_/train.log"
 
 
@@ -52,9 +53,6 @@ else
 	--eval-dataset $dataset2 \
 	--embedding-dim-per-object 32 --num-objects $num_obj --action-dim $num_colors  \
 	--valid-dataset $dataset3 \
-	--save-folder $save_folder_ --batch-size 32 --seed 1 \
+	--save-folder $save_folder_ --batch-size 32 --seed $idx \
 	--epochs 100 --pretrain-epochs 100 --finetune-epochs 100 --predict-diff --rim | tee -a "$save_folder_/train.log"
-
-
 fi
-
