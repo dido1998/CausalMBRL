@@ -464,7 +464,7 @@ class CausalTransitionModelLSTM(nn.Module):
         
         x = torch.cat((encoded_state, encoded_action), dim = 1)
         x = x.unsqueeze(0)
-        x, hidden = self.transition_nets(x, hidden)
+        x, hidden, _ = self.transition_nets(x, hidden)
         x = self.transition_linear(x)
         x = x.squeeze(0)
 

@@ -1,7 +1,9 @@
 #!/bin/bash
 
-module load miniconda3
-source activate cswm-delayed
+#module load miniconda3
+#source activate cswm-delayed
+
+source cswm2/bin/activate
 
 num_obj=$1
 num_colors=$2
@@ -27,7 +29,7 @@ fi
 
 
 truth=True
-save_folder="/home/sarthmit/scratch/C-SWM-delayed/"$save_folder
+save_folder="latest_time_models/"$save_folder
 
 rm -r "$save_folder-$idx"
 mkdir "$save_folder-$idx"
