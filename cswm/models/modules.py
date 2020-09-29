@@ -408,7 +408,7 @@ class CausalTransitionModelLSTM(nn.Module):
             
             self.action_encoder = nn.Linear(self.num_objects * self.action_dim, self.hidden_dim)
             self.obs_encoder = nn.Linear(self.embedding_dim, self.hidden_dim)
-
+            self.lstm = False
             if rim == True:
                 self.rim = True
                 self.transition_nets =  RIM('cuda', 2 * self.hidden_dim, 600, 6, 4, rnn_cell = 'GRU', n_layers = 1, bidirectional = False)
@@ -417,6 +417,7 @@ class CausalTransitionModelLSTM(nn.Module):
                 self.transition_nets = SCOFF('cuda', 2 * self.hidden_dim, 600, 4, 3, num_templates = 2, rnn_cell = 'GRU', n_layers = 1, bidirectional = False, version=1)
                 self.transition_linear = nn.Linear(600, self.embedding_dim)
             else:
+                self.lstm = True
                 self.transition_nets = nn.LSTM(2 * self.hidden_dim, 600)
                 self.transition_linear = nn.Linear(600, self.embedding_dim)
 
@@ -464,7 +465,11 @@ class CausalTransitionModelLSTM(nn.Module):
         
         x = torch.cat((encoded_state, encoded_action), dim = 1)
         x = x.unsqueeze(0)
-        x, hidden, _ = self.transition_nets(x, hidden)
+        if not self.lstm:
+            x, hidden, _ = self.transition_nets(x, hidden)
+        else:
+            x, hidden = self.transition_nets(x, hidden)
+
         x = self.transition_linear(x)
         x = x.squeeze(0)
 
