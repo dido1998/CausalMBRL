@@ -21,11 +21,11 @@ This repository contains code to create the data and run the experiments from th
 
 ### Data Generation
 - Observed Physics Environment
- - `sh scrips/gen_observed.sh num_obj Blues`
+ - `bash scrips/gen_observed.sh num_obj Blues`
 - Unobserved Physics Environment
- - `sh scripts/gen_unobserved.sh num_obj Sets`
+ - `bash scripts/gen_unobserved.sh num_obj Sets`
 - FixedUnobserved Physics Environment
- - `sh scripts/gen_unobserved_fixed.sh num_obj Sets`
+ - `bash scripts/gen_unobserved_fixed.sh num_obj Sets`
 In our experiments we use `num_obj = {3,5}`
 
 ### Model Based Experiments
@@ -33,8 +33,8 @@ In our experiments we use `num_obj = {3,5}`
 **Observed Physics Environment**
 
 ```
-sh scripts/run_observed.sh num_obj model_name encoder batch_size cmap seed loss emb_dim
-sh scripts/eval_observed.sh num_obj model_name encoder cmap seed loss mode emb_dim
+bash scripts/run_observed.sh num_obj model_name encoder batch_size cmap seed loss emb_dim
+bash scripts/eval_observed.sh num_obj model_name encoder cmap seed loss mode emb_dim
 
 num_obj = number of objects {3,5}
 model_name = AE, VAE, Modular, GNN
@@ -43,13 +43,13 @@ batch_size = 512
 cmap = Blues
 loss = NLL or Contrastive
 emb_dim = 128
-mode = test
+mode = test-v0
 ```
 
 **Unobserved Physics Environment**
 ```
-sh scripts/run_unobserved.sh num_obj model_name encoder batch_size cmap seed loss emb_dim
-sh scripts/eval_unobserved.sh num_obj model_name encoder cmap seed loss mode emb_dim
+bash scripts/run_unobserved.sh num_obj model_name encoder batch_size cmap seed loss emb_dim
+bash scripts/eval_unobserved.sh num_obj model_name encoder cmap seed loss mode emb_dim
 
 num_obj = number of objects {3,5}
 model_name = AE, VAE, Modular, GNN
@@ -63,8 +63,8 @@ mode = test
 
 **FixedUnobserved Physics Environment**
 ```
-sh scripts/run_fixed_unobserved.sh num_obj model_name encoder batch_size cmap seed loss emb_dim
-sh scripts/eval_fixed_unobserved.sh num_obj model_name encoder cmap seed loss mode emb_dim
+bash scripts/run_fixed_unobserved.sh num_obj model_name encoder batch_size cmap seed loss emb_dim
+bash scripts/eval_fixed_unobserved.sh num_obj model_name encoder cmap seed loss mode emb_dim
 
 num_obj = number of objects {3,5}
 model_name = AE, VAE, Modular, GNN
@@ -85,8 +85,8 @@ The below scripts run the reinforcement learning experiments for the above train
 **Observed Physics Environment**
 ```
 # This scripts will automatically load the pre-trained model with above arguments. 
-sh scripts/run_reward_observed.sh num_obj model_name encoder batch_size cmap seed loss emb_dim
-sh scripts/eval_rl_observed.sh num_obj model_name encoder cmap seed loss mode emb_dim steps
+bash scripts/run_reward_observed.sh num_obj model_name encoder batch_size cmap seed loss emb_dim
+bash scripts/eval_rl_observed.sh num_obj model_name encoder cmap seed loss mode emb_dim steps
 
 num_obj = {3,5}
 model_name = AE, VAE, Modular, GNN
@@ -94,7 +94,7 @@ batch_size = 32
 cmap = Blues
 loss = NLL or Contrastive
 emb_dim = 128
-mode = test
+mode = test-v0
 steps = {1,5,10}
 
 ```
@@ -103,8 +103,8 @@ steps = {1,5,10}
 **Unobserved Physics Environment**
 ```
 # This scripts will automatically load the pre-trained model with above arguments. 
-sh scripts/run_reward_unobserved.sh num_obj model_name encoder batch_size cmap seed loss emb_dim
-sh scripts/eval_rl_unobserved.sh num_obj model_name encoder cmap seed loss mode emb_dim steps
+bash scripts/run_reward_unobserved.sh num_obj model_name encoder batch_size cmap seed loss emb_dim
+bash scripts/eval_rl_unobserved.sh num_obj model_name encoder cmap seed loss mode emb_dim steps
 
 num_obj = {3,5}
 model_name = AE, VAE, Modular, GNN
@@ -120,8 +120,8 @@ steps = {1,5,10}
 **FixedUnobserved Physics Environment**
 ```
 # This scripts will automatically load the pre-trained model with above arguments. 
-sh scripts/run_reward_fixed_unobserved.sh num_obj model_name encoder batch_size cmap seed loss emb_dim
-sh scripts/eval_rl_fixed_unobserved.sh num_obj model_name encoder cmap seed loss mode emb_dim steps
+bash scripts/run_reward_fixed_unobserved.sh num_obj model_name encoder batch_size cmap seed loss emb_dim
+bash scripts/eval_rl_fixed_unobserved.sh num_obj model_name encoder cmap seed loss mode emb_dim steps
 
 num_obj = {3,5}
 model_name = AE, VAE, Modular, GNN
@@ -138,70 +138,70 @@ steps = {1,5,10}
 ### To Reproduce Physics Environment Experiments from the paper 
 ```
 # Generate Date
-sh scripts/gen_observed.sh 3 Blues
-sh scripts/gen_observed.sh 5 Blues
+bash scripts/gen_observed.sh 3 Blues
+bash scripts/gen_observed.sh 5 Blues
 
-sh scripts/gen_unobserved.sh 3 Sets
-sh scripts/gen_unobserved.sh 5 Sets
+bash scripts/gen_unobserved.sh 3 Sets
+bash scripts/gen_unobserved.sh 5 Sets
 
-sh scripts/gen_unobserved_fixed.sh 3 Sets
-sh scripts/gen_unobserved_fixed.sh 5 Sets
+bash scripts/gen_unobserved_fixed.sh 3 Sets
+bash scripts/gen_unobserved_fixed.sh 5 Sets
 
 
 # Model Based Experiments
 ## Observed Physics Environment
 ### These 8 experiments are run for model_name = AE, VAE, Modular, GNN
-sh scripts/run_observed.sh 3 AE medium 512 Blues 0 NLL 128
-sh scripts/eval_observed.sh 3 AE medium Blues 0 NLL test 128
+bash scripts/run_observed.sh 3 AE medium 512 Blues 0 NLL 128
+bash scripts/eval_observed.sh 3 AE medium Blues 0 NLL test-v0 128
 
-sh scripts/run_observed.sh 3 AE medium 512 Blues 0 Contrastive 128
-sh scripts/eval_observed.sh 3 AE medium Blues 0 Contrastive test 128
+bash scripts/run_observed.sh 3 AE medium 512 Blues 0 Contrastive 128
+bash scripts/eval_observed.sh 3 AE medium Blues 0 Contrastive test-v0 128
 
 
-sh scripts/run_observed.sh 5 AE medium 512 Blues 0 NLL 128
-sh scripts/eval_observed.sh 5 AE medium Blues 0 NLL test 128
+bash scripts/run_observed.sh 5 AE medium 512 Blues 0 NLL 128
+bash scripts/eval_observed.sh 5 AE medium Blues 0 NLL test-v0 128
 
-sh scripts/run_observed.sh 5 AE medium 512 Blues 0 Contrastive 128
-sh scripts/eval_observed.sh 5 AE medium Blues 0 Contrastive test 128
+bash scripts/run_observed.sh 5 AE medium 512 Blues 0 Contrastive 128
+bash scripts/eval_observed.sh 5 AE medium Blues 0 Contrastive test-v0 128
 
 ## Unobserved Physics Environment
 ### These 8 experiments are run for model_name = AE, VAE, Modular, GNN
-sh scripts/run_unobserved.sh 3 AE medium 512 Sets 0 NLL 128
-sh scripts/eval_unobserved.sh 3 AE medium Sets 0 NLL test 128
+bash scripts/run_unobserved.sh 3 AE medium 512 Sets 0 NLL 128
+bash scripts/eval_unobserved.sh 3 AE medium Sets 0 NLL test 128
 
-sh scripts/run_unobserved.sh 3 AE medium 512 Sets 0 Contrastive 128
-sh scripts/eval_unobserved.sh 3 AE medium Sets 0 Contrastive test 128
+bash scripts/run_unobserved.sh 3 AE medium 512 Sets 0 Contrastive 128
+bash scripts/eval_unobserved.sh 3 AE medium Sets 0 Contrastive test 128
 
 
-sh scripts/run_unobserved.sh 5 AE medium 512 Sets 0 NLL 128
-sh scripts/eval_unobserved.sh 5 AE medium Sets 0 NLL test 128
+bash scripts/run_unobserved.sh 5 AE medium 512 Sets 0 NLL 128
+bash scripts/eval_unobserved.sh 5 AE medium Sets 0 NLL test 128
 
-sh scripts/run_unobserved.sh 5 AE medium 512 Sets 0 Contrastive 128
-sh scripts/eval_unobserved.sh 5 AE medium Sets 0 Contrastive test 128
+bash scripts/run_unobserved.sh 5 AE medium 512 Sets 0 Contrastive 128
+bash scripts/eval_unobserved.sh 5 AE medium Sets 0 Contrastive test 128
 
 
 ## FixedUnobserved Physics Environment
 ### These 8 experiments are run for model_name = AE, VAE, Modular, GNN
-sh scripts/run__fixed_unobserved.sh 3 AE medium 512 Sets 0 NLL 128
-sh scripts/eval_fixded_unobserved.sh 3 AE medium Sets 0 NLL test 128
+bash scripts/run__fixed_unobserved.sh 3 AE medium 512 Sets 0 NLL 128
+bash scripts/eval_fixded_unobserved.sh 3 AE medium Sets 0 NLL test 128
 
-sh scripts/run_fixed_unobserved.sh 3 AE medium 512 Sets 0 Contrastive 128
-sh scripts/eval_fixed_unobserved.sh 3 AE medium Sets 0 Contrastive test 128
+bash scripts/run_fixed_unobserved.sh 3 AE medium 512 Sets 0 Contrastive 128
+bash scripts/eval_fixed_unobserved.sh 3 AE medium Sets 0 Contrastive test 128
 
 
-sh scripts/run_fixed_unobserved.sh 5 AE medium 512 Sets 0 NLL 128
-sh scripts/eval_fixed_unobserved.sh 5 AE medium Sets 0 NLL test 128
+bash scripts/run_fixed_unobserved.sh 5 AE medium 512 Sets 0 NLL 128
+bash scripts/eval_fixed_unobserved.sh 5 AE medium Sets 0 NLL test 128
 
-sh scripts/run_fixed_unobserved.sh 5 AE medium 512 Sets 0 Contrastive 128
-sh scripts/eval_fixed_unobserved.sh 5 AE medium Sets 0 Contrastive test 128
+bash scripts/run_fixed_unobserved.sh 5 AE medium 512 Sets 0 Contrastive 128
+bash scripts/eval_fixed_unobserved.sh 5 AE medium Sets 0 Contrastive test 128
 
 
 # Reinforcement Learning 
 ## The below experiments can be repeated for model_name = {AE, VAE. Modular, GNN}, loss = {NLL, Contrastive}, num_obj = {3,5}, environments = {Observed, Unobserved, FixedUnobserved}
-sh scripts/run_reward_observed.sh 3 AE medium 512 Blues 0 NLL 128
-sh scripts/eval_rl_observed.sh 3 AE medium Blues 0 NLL Train 128 1
-sh scripts/eval_rl_observed.sh 3 AE medium Blues 0 NLL Train 128 5
-sh scripts/eval_rl_observed.sh 3 AE medium Blues 0 NLL Train 128 10
+bash scripts/run_reward_observed.sh 3 AE medium 512 Blues 0 NLL 128
+bash scripts/eval_rl_observed.sh 3 AE medium Blues 0 NLL Train 128 1
+bash scripts/eval_rl_observed.sh 3 AE medium Blues 0 NLL Train 128 5
+bash scripts/eval_rl_observed.sh 3 AE medium Blues 0 NLL Train 128 10
 ```
 
 
@@ -209,7 +209,7 @@ sh scripts/eval_rl_observed.sh 3 AE medium Blues 0 NLL Train 128 10
 
 ### Data Generation
 ```
-sh scripts/chem_data.sh num_obj num_color graph max_steps movement
+bash scripts/chem_data.sh num_obj num_color graph max_steps movement
 
 num_obj = 5
 num_color = 5
@@ -221,8 +221,8 @@ movement = Static = The positions are fixed across episodes.
 
 ### Model Based  Experiments 
 ```
-sh scripts/run_chem.sh num_obj model_name encoder batch_size num_colors max_steps movement graph seed loss emb_dim
-sh scripts/eval_chem.sh num_obj model_name encoder num_colors max_steps movement graph seed loss mode emb_dim
+bash scripts/run_chem.sh num_obj model_name encoder batch_size num_colors max_steps movement graph seed loss emb_dim
+bash scripts/eval_chem.sh num_obj model_name encoder num_colors max_steps movement graph seed loss mode emb_dim
 
 
 num_obj = 5
@@ -240,8 +240,8 @@ mode = test
 
 ### Reinforcement Learning Experiments
 ```
-sh scripts/run_chem_reward.sh num_obj model_name encoder batch_size num_colors max_steps movement graph seed loss emb_dim
-sh scripts/eval_rl_chem.sh num_obj model_name encoder num_colors max_steps movement graph seed loss mode emb_dim steps
+bash scripts/run_chem_reward.sh num_obj model_name encoder batch_size num_colors max_steps movement graph seed loss emb_dim
+bash scripts/eval_rl_chem.sh num_obj model_name encoder num_colors max_steps movement graph seed loss mode emb_dim steps
 
 
 num_obj = 5
@@ -262,121 +262,121 @@ steps = {1, 5, 10}
 ### To Reproduce Chemistry Environment Experiments from the Paper
 ```
 # Generate Data
-sh scripts/chem_data.sh 5 5 chain5 10 Static
-sh scripts/chem_data.sh 5 5 full5 10 Static
-sh scripts/chem_data.sh 5 5 collider5 10 Static
+bash scripts/chem_data.sh 5 5 chain5 10 Static
+bash scripts/chem_data.sh 5 5 full5 10 Static
+bash scripts/chem_data.sh 5 5 collider5 10 Static
 
-sh scripts/chem_data.sh 5 5 chain5 10 Dynamic
-sh scripts/chem_data.sh 5 5 full5 10 Dynamic
-sh scripts/chem_data.sh 5 5 collider5 10 Dynamic
+bash scripts/chem_data.sh 5 5 chain5 10 Dynamic
+bash scripts/chem_data.sh 5 5 full5 10 Dynamic
+bash scripts/chem_data.sh 5 5 collider5 10 Dynamic
 
 
 # Model Based Experiments
 ## Repeat the below experiments for model_name = {AE, VAE, Modular, GNN}
-sh scripts/run_chem.sh 5 AE medium 512 5 10 Dynamic chain5 0 NLL 128
-sh scripts/eval_chem.sh 5 AE medium 5 10 Dynamic chain5 0 NLL test 128
+bash scripts/run_chem.sh 5 AE medium 512 5 10 Dynamic chain5 0 NLL 128
+bash scripts/eval_chem.sh 5 AE medium 5 10 Dynamic chain5 0 NLL test 128
 
-sh scripts/run_chem.sh 5 AE medium 512 5 10 Dynamic full5 0 NLL 128
-sh scripts/eval_chem.sh 5 AE medium 5 10 Dynamic full5 0 NLL test 128
+bash scripts/run_chem.sh 5 AE medium 512 5 10 Dynamic full5 0 NLL 128
+bash scripts/eval_chem.sh 5 AE medium 5 10 Dynamic full5 0 NLL test 128
 
-sh scripts/run_chem.sh 5 AE medium 512 5 10 Dynamic collider5 0 NLL 128
-sh scripts/eval_chem.sh 5 AE medium 5 10 Dynamic collider5 0 NLL test 128
-
-
-sh scripts/run_chem.sh 5 AE medium 512 5 10 Dynamic chain5 0 Contrastive 128
-sh scripts/eval_chem.sh 5 AE medium 5 10 Dynamic chain5 0 Contrastive test 128
-
-sh scripts/run_chem.sh 5 AE medium 512 5 10 Dynamic full5 0 Contrastive 128
-sh scripts/eval_chem.sh 5 AE medium 5 10 Dynamic full5 0 Contrastive test 128
-
-sh scripts/run_chem.sh 5 AE medium 512 5 10 Dynamic collider5 0 Contrastive 128
-sh scripts/eval_chem.sh 5 AE medium 5 10 Dynamic collider5 0 Contrastive test 128
+bash scripts/run_chem.sh 5 AE medium 512 5 10 Dynamic collider5 0 NLL 128
+bash scripts/eval_chem.sh 5 AE medium 5 10 Dynamic collider5 0 NLL test 128
 
 
-sh scripts/run_chem.sh 5 AE medium 512 5 10 Static chain5 0 NLL 128
-sh scripts/eval_chem.sh 5 AE medium 5 10 Static chain5 0 NLL test 128
+bash scripts/run_chem.sh 5 AE medium 512 5 10 Dynamic chain5 0 Contrastive 128
+bash scripts/eval_chem.sh 5 AE medium 5 10 Dynamic chain5 0 Contrastive test 128
 
-sh scripts/run_chem.sh 5 AE medium 512 5 10 Static full5 0 NLL 128
-sh scripts/eval_chem.sh 5 AE medium 5 10 Static full5 0 NLL test 128
+bash scripts/run_chem.sh 5 AE medium 512 5 10 Dynamic full5 0 Contrastive 128
+bash scripts/eval_chem.sh 5 AE medium 5 10 Dynamic full5 0 Contrastive test 128
 
-sh scripts/run_chem.sh 5 AE medium 512 5 10 Static collider5 0 NLL 128
-sh scripts/eval_chem.sh 5 AE medium 5 10 Static collider5 0 NLL test 128
+bash scripts/run_chem.sh 5 AE medium 512 5 10 Dynamic collider5 0 Contrastive 128
+bash scripts/eval_chem.sh 5 AE medium 5 10 Dynamic collider5 0 Contrastive test 128
 
 
-sh scripts/run_chem.sh 5 AE medium 512 5 10 Static chain5 0 Contrastive 128
-sh scripts/eval_chem.sh 5 AE medium 5 10 Static chain5 0 Contrastive test 128
+bash scripts/run_chem.sh 5 AE medium 512 5 10 Static chain5 0 NLL 128
+bash scripts/eval_chem.sh 5 AE medium 5 10 Static chain5 0 NLL test 128
 
-sh scripts/run_chem.sh 5 AE medium 512 5 10 Static full5 0 Contrastive 128
-sh scripts/eval_chem.sh 5 AE medium 5 10 Static full5 0 Contrastive test 128
+bash scripts/run_chem.sh 5 AE medium 512 5 10 Static full5 0 NLL 128
+bash scripts/eval_chem.sh 5 AE medium 5 10 Static full5 0 NLL test 128
 
-sh scripts/run_chem.sh 5 AE medium 512 5 10 Static collider5 0 Contrastive 128
-sh scripts/eval_chem.sh 5 AE medium 5 10 Static collider5 0 Contrastive test 128
+bash scripts/run_chem.sh 5 AE medium 512 5 10 Static collider5 0 NLL 128
+bash scripts/eval_chem.sh 5 AE medium 5 10 Static collider5 0 NLL test 128
+
+
+bash scripts/run_chem.sh 5 AE medium 512 5 10 Static chain5 0 Contrastive 128
+bash scripts/eval_chem.sh 5 AE medium 5 10 Static chain5 0 Contrastive test 128
+
+bash scripts/run_chem.sh 5 AE medium 512 5 10 Static full5 0 Contrastive 128
+bash scripts/eval_chem.sh 5 AE medium 5 10 Static full5 0 Contrastive test 128
+
+bash scripts/run_chem.sh 5 AE medium 512 5 10 Static collider5 0 Contrastive 128
+bash scripts/eval_chem.sh 5 AE medium 5 10 Static collider5 0 Contrastive test 128
 
 
 # Reinforcement Learning Experiments
 ## Repeat the below experiments for model_name = {AE, VAE, Modular, GNN}
-sh scripts/run_chem_reward.sh 5 AE medium 512 5 10 Dynamic chain5 0 NLL 128
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic chain5 0 NLL Train 128 1
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic chain5 0 NLL Train 128 5
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic chain5 0 NLL Train 128 10
+bash scripts/run_chem_reward.sh 5 AE medium 512 5 10 Dynamic chain5 0 NLL 128
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic chain5 0 NLL Train 128 1
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic chain5 0 NLL Train 128 5
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic chain5 0 NLL Train 128 10
 
-sh scripts/run_chem_reward.sh 5 AE medium 512 5 10 Dynamic full5 0 NLL 128
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic full5 0 NLL Train 128 1
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic full5 0 NLL Train 128 5
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic full5 0 NLL Train 128 10
+bash scripts/run_chem_reward.sh 5 AE medium 512 5 10 Dynamic full5 0 NLL 128
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic full5 0 NLL Train 128 1
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic full5 0 NLL Train 128 5
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic full5 0 NLL Train 128 10
 
-sh scripts/run_chem_reward.sh 5 AE medium 512 5 10 Dynamic collider5 0 NLL 128
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic collider5 0 NLL Train 128 1
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic collider5 0 NLL Train 128 5
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic collider5 0 NLL Train 128 10
-
-
-sh scripts/run_chem_reward.sh 5 AE medium 512 5 10 Dynamic chain5 0 Contrastive 128
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic chain5 0 Contrastive Train 128 1
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic chain5 0 Contrastive Train 128 5
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic chain5 0 Contrastive Train 128 10
-
-sh scripts/run_chem_reward.sh 5 AE medium 512 5 10 Dynamic full5 0 Contrastive 128
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic full5 0 Contrastive Train 128 1
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic full5 0 Contrastive Train 128 5
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic full5 0 Contrastive Train 128 10
-
-sh scripts/run_chem_reward.sh 5 AE medium 512 5 10 Dynamic collider5 0 Contrastive 128
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic collider5 0 Contrastive Train 128 1
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic collider5 0 Contrastive Train 128 5
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic collider5 0 Contrastive Train 128 10
+bash scripts/run_chem_reward.sh 5 AE medium 512 5 10 Dynamic collider5 0 NLL 128
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic collider5 0 NLL Train 128 1
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic collider5 0 NLL Train 128 5
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic collider5 0 NLL Train 128 10
 
 
-sh scripts/run_chem_reward.sh 5 AE medium 512 5 10 Static chain5 0 NLL 128
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static chain5 0 NLL Train 128 1
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static chain5 0 NLL Train 128 5
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static chain5 0 NLL Train 128 10
+bash scripts/run_chem_reward.sh 5 AE medium 512 5 10 Dynamic chain5 0 Contrastive 128
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic chain5 0 Contrastive Train 128 1
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic chain5 0 Contrastive Train 128 5
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic chain5 0 Contrastive Train 128 10
 
-sh scripts/run_chem_reward.sh 5 AE medium 512 5 10 Static full5 0 NLL 128
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static full5 0 NLL Train 128 1
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static full5 0 NLL Train 128 5
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static full5 0 NLL Train 128 10
+bash scripts/run_chem_reward.sh 5 AE medium 512 5 10 Dynamic full5 0 Contrastive 128
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic full5 0 Contrastive Train 128 1
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic full5 0 Contrastive Train 128 5
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic full5 0 Contrastive Train 128 10
 
-sh scripts/run_chem_reward.sh 5 AE medium 512 5 10 Static collider5 0 NLL 128
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static collider5 0 NLL Train 128 1
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static collider5 0 NLL Train 128 5
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static collider5 0 NLL Train 128 10
+bash scripts/run_chem_reward.sh 5 AE medium 512 5 10 Dynamic collider5 0 Contrastive 128
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic collider5 0 Contrastive Train 128 1
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic collider5 0 Contrastive Train 128 5
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic collider5 0 Contrastive Train 128 10
 
 
-sh scripts/run_chem_reward.sh 5 AE medium 512 5 10 Static chain5 0 Contrastive 128
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static chain5 0 Contrastive Train 128 1
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static chain5 0 Contrastive Train 128 5
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static chain5 0 Contrastive Train 128 10
+bash scripts/run_chem_reward.sh 5 AE medium 512 5 10 Static chain5 0 NLL 128
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Static chain5 0 NLL Train 128 1
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Static chain5 0 NLL Train 128 5
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Static chain5 0 NLL Train 128 10
 
-sh scripts/run_chem_reward.sh 5 AE medium 512 5 10 Static full5 0 Contrastive 128
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static full5 0 Contrastive Train 128 1
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static full5 0 Contrastive Train 128 5
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static full5 0 Contrastive Train 128 10
+bash scripts/run_chem_reward.sh 5 AE medium 512 5 10 Static full5 0 NLL 128
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Static full5 0 NLL Train 128 1
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Static full5 0 NLL Train 128 5
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Static full5 0 NLL Train 128 10
 
-sh scripts/run_chem_reward.sh 5 AE medium 512 5 10 Static collider5 0 Contrastive 128
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static collider5 0 Contrastive Train 128 1
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static collider5 0 Contrastive Train 128 5
-sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static collider5 0 Contrastive Train 128 10
+bash scripts/run_chem_reward.sh 5 AE medium 512 5 10 Static collider5 0 NLL 128
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Static collider5 0 NLL Train 128 1
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Static collider5 0 NLL Train 128 5
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Static collider5 0 NLL Train 128 10
+
+
+bash scripts/run_chem_reward.sh 5 AE medium 512 5 10 Static chain5 0 Contrastive 128
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Static chain5 0 Contrastive Train 128 1
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Static chain5 0 Contrastive Train 128 5
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Static chain5 0 Contrastive Train 128 10
+
+bash scripts/run_chem_reward.sh 5 AE medium 512 5 10 Static full5 0 Contrastive 128
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Static full5 0 Contrastive Train 128 1
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Static full5 0 Contrastive Train 128 5
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Static full5 0 Contrastive Train 128 10
+
+bash scripts/run_chem_reward.sh 5 AE medium 512 5 10 Static collider5 0 Contrastive 128
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Static collider5 0 Contrastive Train 128 1
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Static collider5 0 Contrastive Train 128 5
+bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Static collider5 0 Contrastive Train 128 10
 
 ```
 
