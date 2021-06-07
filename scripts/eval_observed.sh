@@ -35,5 +35,5 @@ fi
 
 echo $extras
 
-python ../eval.py --dataset $data"_"$num_obj"_"$cmap"_"$mode".h5" \
+python ./eval.py --dataset $data"_"$num_obj"_"$cmap"_"$mode".h5" \
 	--save-folder $save""$name --save $dir $extras

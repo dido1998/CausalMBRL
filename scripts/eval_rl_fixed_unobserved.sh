@@ -42,6 +42,6 @@ if [[ $name == *"NLL"* ]]; then
 	extras=$extras" --finetune"
 fi
 
-python ../test_planning.py --save-folder $save""$name --save $dir \
+python ./test_planning.py --save-folder $save""$name --save $dir \
     --num-eval 1000 --num-steps $steps \
     --env-id $env --random $extras

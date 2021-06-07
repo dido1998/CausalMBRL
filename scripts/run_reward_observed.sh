@@ -17,6 +17,6 @@ save="Models_"$emb"/Observed/"$name"_"$run"/"
 name=$name"_"$loss"_"$encoder"_"$num_obj"_"$cmap
 echo $name
 
-python ../train_reward_predictor.py --save-folder $save""$name
-python ../train_reward_predictor.py --save-folder $save""$name --random
-python ../train_reward_predictor.py --save-folder $save""$name --finetune
+python ./train_reward_predictor.py --save-folder $save""$name
+python ./train_reward_predictor.py --save-folder $save""$name --random
+python ./train_reward_predictor.py --save-folder $save""$name --finetune

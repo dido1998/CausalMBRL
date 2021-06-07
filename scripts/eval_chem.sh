@@ -38,5 +38,5 @@ fi
 
 echo $extras
 
-python ../eval.py --dataset $data \
+python ./eval.py --dataset $data \
 	--save-folder $save""$name --save $dir $extras
