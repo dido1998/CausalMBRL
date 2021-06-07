@@ -1,6 +1,22 @@
 # Systematic Evaluation of Causal Discovery in Visual Model Based Reinforcement Learning
 
-This repository contains code to create the data and run the experiments from the paper. 
+This repository contains code to create the data and run the experiments from the paper.
+
+- [Systematic Evaluation of Causal Discovery in Visual Model Based Reinforcement Learning](#systematic-evaluation-of-causal-discovery-in-visual-model-based-reinforcement-learning)
+  * [Physics Environment](#physics-environment)
+    + [Data Generation](#data-generation)
+    + [Model Based Experiments](#model-based-experiments)
+    + [Reinforcement Learning Experiments](#reinforcement-learning-experiments)
+    + [To Reproduce Physics Environment Experiments from the paper](#to-reproduce-physics-environment-experiments-from-the-paper)
+  * [Chemistry Environment](#chemistry-environment)
+    + [Data Generation](#data-generation-1)
+    + [Model Based  Experiments](#model-based--experiments)
+    + [Reinforcement Learning Experiments](#reinforcement-learning-experiments-1)
+    + [To Reproduce Chemistry Environment Experiments from the Paper](#to-reproduce-chemistry-environment-experiments-from-the-paper)
+  * [Dataset Metadata](#dataset-metadata)
+
+<small><i><a href='http://ecotrust-canada.github.io/markdown-toc/'>Table of contents generated with markdown-toc</a></i></small>
+
 
 ## Physics Environment
 
@@ -120,7 +136,7 @@ steps = {1,5,10}
 ```
 
 
-### To Reproduce Experiments from the paper 
+### To Reproduce Physics Environment Experiments from the paper 
 ```
 # Generate Date
 sh scripts/gen_observed.sh 3 Blues
@@ -244,7 +260,7 @@ steps = {1, 5, 10}
 
 ```
 
-### To Reproduce Experiments from the Paper
+### To Reproduce Chemistry Environment Experiments from the Paper
 ```
 # Generate Data
 sh scripts/chem_data.sh 5 5 chain5 10 Static
