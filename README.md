@@ -378,20 +378,19 @@ sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static collider5 0 Contrastive Train
   </tr>
   <tr>
     <td>alternateName</td>
-    <td><code itemprop="alternateName">CausalMBRL</code></td>
+    <td><code itemprop="alternateName">CMBRL</code></td>
   </tr>
   <tr>
     <td>url</td>
-    <td><code itemprop="url">https://github.com/google-research/google-research/tree/master/cfq</code></td>
+    <td><code itemprop="url">https://github.com/dido1998/CausalMBRL</code></td>
   </tr>
   <tr>
     <td>description</td>
-    <td><code itemprop="description">The Compositional Freebase Questions (CFQ)
-      is a dataset that is specifically designed to measure compositional
-      generalization. CFQ is a simple yet realistic, large dataset of natural
-      language questions and answers that also provides for each question a
-      corresponding SPARQL query against the Freebase knowledge base. This means
-      that CFQ can also be used for semantic parsing.</code></td>
+    <td><code itemprop="description">The CausalMBRL dataset is created to test the causal learning abilities of model-based
+      reinforcement learning agents. It contains 2 environments: The Physics Environment and The Chemistry Environment. 
+      Both the environments consist of blocks of various colors, shapes, and weights placed in a grid. For both the environments,
+      there exists a ground-truth causal graph which dictates how the blocks interact. This graph is unknown to the model and should
+      be discovered by it through interactions with the environment.</code></td>
   </tr>
   <tr>
     <td>provider</td>
@@ -404,41 +403,17 @@ sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static collider5 0 Contrastive Train
           </tr>
           <tr>
             <td>name</td>
-            <td><code itemprop="name">Google</code></td>
+            <td><code itemprop="name">MILA, University of Montreal</code></td>
           </tr>
           <tr>
             <td>sameAs</td>
-            <td><code itemprop="sameAs">https://en.wikipedia.org/wiki/Google</code></td>
+            <td><code itemprop="sameAs">https://mila.quebec/en/</code></td>
           </tr>
         </table>
       </div>
     </td>
   </tr>
-  <tr>
-    <td>license</td>
-    <td>
-      <div itemscope itemtype="http://schema.org/CreativeWork" itemprop="license">
-        <table>
-          <tr>
-            <th>property</th>
-            <th>value</th>
-          </tr>
-          <tr>
-            <td>name</td>
-            <td><code itemprop="name">CC BY-SA 3.0</code></td>
-          </tr>
-          <tr>
-            <td>url</td>
-            <td><code itemprop="url">https://creativecommons.org/licenses/by-sa/3.0/</code></td>
-          </tr>
-        </table>
-      </div>
-    </td>
-  </tr>
-  <tr>
-    <td>citation</td>
-    <td><code itemprop="citation">Daniel Keysers et al. "Measuring Compositional Generalization: A Comprehensive Method on Realistic Data" (2020). https://openreview.net/pdf?id=SygcCnNKwr</code></td>
-  </tr>
+  
 </table>
 </div>
 
