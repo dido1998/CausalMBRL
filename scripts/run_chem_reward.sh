@@ -15,7 +15,7 @@ run=$9
 loss={10}
 emb=${11}
 
-save="Models_"$emb"/Chemistry/"$name"_"$run"/"
+save="models_"$emb"/Chemistry/"$name"_"$run"/"
 
 name=$name"_"$loss"_"$encoder"_"$num_obj"_"$num_colors"_"$max_steps"_"$movement"_"$graph
 echo $name

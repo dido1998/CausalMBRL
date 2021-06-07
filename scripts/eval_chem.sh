@@ -14,7 +14,7 @@ loss=$9
 mode=${10}
 emb=${11}
 
-dir="Models_"$emb
+dir="models_"$emb
 
 data="data/ColorChangingRL_$num_obj-$num_colors-$max_steps-$movement-$mode-$graph.h5"
 

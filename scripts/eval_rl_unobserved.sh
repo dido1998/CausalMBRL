@@ -12,7 +12,7 @@ mode=$7
 emb=$8
 steps=$9
 
-dir="Models_"$emb
+dir="models_"$emb
 
 #env=WShapesRL-Observed-$mode-$num_obj-$cmap-v0
 env=WShapesRL-Unobserved-Train-$num_obj-$cmap-v0

@@ -12,7 +12,7 @@ run=$6
 loss=$7
 emb=$8
 
-save="Models_"$emb"/FixedUnobserved/"$name"_"$run"/"
+save="models_"$emb"/FixedUnobserved/"$name"_"$run"/"
 
 name=$name"_"$loss"_"$encoder"_"$num_obj"_"$cmap
 echo $name

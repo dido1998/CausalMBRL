@@ -11,7 +11,7 @@ loss=$6
 mode=$7
 emb=$8
 
-dir="Models_"$emb
+dir="models_"$emb
 
 data="data/Unobserved/wshapes_unobserved"
 
