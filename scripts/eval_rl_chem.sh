@@ -5,15 +5,15 @@ echo Running on $HOSTNAME
 num_obj=$1
 name=$2
 encoder=$3
-num_colors=$5
-max_steps=$6
-movement=$7
-graph=$8
-seed=$9
-loss=${10}
-mode=${11}
-emb=${12}
-steps=${13}
+num_colors=$4
+max_steps=$5
+movement=$6
+graph=$7
+seed=$8
+loss=${9}
+mode=${10}
+emb=${11}
+steps=${12}
 
 dir="models_"$emb
 

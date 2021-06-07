@@ -166,7 +166,7 @@ with open(meta_file, "wb") as f:
 device = torch.device('cuda' if args.cuda else 'cpu')
 
 # Load datasets
-graph = torch.load(args.graph)['graph']
+graph = None #torch.load(args.graph)['graph']
 dataset = utils.StateTransitionsDataset(
     hdf5_file=args.dataset, action_transform=OneHot(args.num_objects * args.action_dim))
 valid_dataset = utils.StateTransitionsDataset(

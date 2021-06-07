@@ -12,7 +12,7 @@ max_steps=$6
 movement=$7
 graph=$8
 run=$9
-loss={10}
+loss=${10}
 emb=${11}
 
 save="models_"$emb"/Chemistry/"$name"_"$run"/"

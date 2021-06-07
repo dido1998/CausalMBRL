@@ -11,7 +11,7 @@ from . import (
     EncoderCNNSmall, EncoderCNNMedium, EncoderCNNLarge,
     DecoderCNNSmall, DecoderCNNMedium, DecoderCNNLarge)
 
-from modularity import RIM, SCOFF
+#from modularity import RIM, SCOFF
 
 
 class CausalTransitionModel(nn.Module):
