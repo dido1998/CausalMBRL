@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo Running on $HOSTNAME
-source activate cswm
+conda activate py37
 
 num_obj=$1
 name=$2
@@ -11,18 +11,10 @@ cmap=$5
 seed=$6
 loss=$7
 emb=$8
-num_rules=$9
-rule_time_steps=${10}
-application_option=${11}
-rule_dim=${12}
 
-data="/home/sarthmit/scratch/C-SWM/Data/Observed/wshapes_observed"
-#data="/home/sarthmit/scratch/C-SWM/Data/Unobserved/wshapes_unobserved"
-#data="/home/sarthmit/scratch/C-SWM/Data/FixedUnobserved/wshapes_fixedunobserved"
+data="data/Unobserved/wshapes_unobserved"
 
-save="/home/sarthmit/scratch/C-SWM/Models_"$emb"/Observed/"$name"_"$seed"/"
-#save="/home/sarthmit/scratch/C-SWM/Models/Unobserved/"$name"/"
-#save="/home/sarthmit/scratch/C-SWM/Models/FixedUnobserved/"$name"/"
+save="models_"$emb"/Observed/"$name"_"$seed"/"
 
 name=$name"_"$loss"_"$encoder"_"$num_obj"_"$cmap
 echo $name
@@ -53,7 +45,7 @@ elif [[ $name == *"Modular"* ]]; then
 	       	--num-objects $num_obj \
                 --valid-dataset $data"_"$num_obj"_"$cmap"_valid.h5" --epochs 100 \
                 --pretrain-epochs 100 --batch-size $bs --silent --save-folder $save \
-                --seed $seed --predict-diff --modular $extras --num_rules $num_rules  --rule_dim $rule_dim --rule_time_steps $rule_time_steps --application_option $application_option
+                --seed $seed --predict-diff --modular $extras 
 elif [[ $name == *"GNN"* ]]; then
         python ../train_baselines.py --dataset $data"_"$num_obj"_"$cmap"_train.h5" \
                 --encoder $encoder --name $name --embedding-dim-per-object $emb \

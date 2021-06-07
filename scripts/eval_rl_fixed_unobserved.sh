@@ -1,7 +1,6 @@
 #!/bin/bash
 
 echo Running on $HOSTNAME
-source activate cswm
 
 num_obj=$1
 name=$2
@@ -15,13 +14,11 @@ steps=$9
 
 dir="Models_"$emb
 
-env=WShapesRL-Observed-$mode-$num_obj-$cmap-v0
+#env=WShapesRL-Observed-$mode-$num_obj-$cmap-v0
 #env=WShapesRL-Unobserved-Train-$num_obj-$cmap-v0
-#env=WShapesRL-FixedUnobserved-Train-$num_obj-$cmap-v0
+env=WShapesRL-FixedUnobserved-Train-$num_obj-$cmap-v0
 
-save="/home/sarthmit/scratch/C-SWM/"$dir"/Observed/"$name"_"$seed"/"
-#save="/home/sarthmit/scratch/C-SWM/"$dir"/Unobserved/"$name"/"
-#save="/home/sarthmit/scratch/C-SWM/"$dir"/FixedUnobserved/"$name"/"
+save=$dir"/FixedUnobserved/"$name"_"$seed"/"
 
 name=$name"_"$loss"_"$encoder"_"$num_obj"_"$cmap
 echo $name

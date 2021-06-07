@@ -1,143 +1,444 @@
-# Ingredients for Causal Learning in model-based RL
+# Systematic Evaluation of Causal Discovery in Visual Model Based Reinforcement Learning
+
+This repository contains code to create the data and run the experiments from the paper. 
+
+## Physics Environment
+
+### Data Generation
+- Observed Physics Environment
+ - `sh scrips/gen_observed.sh num_obj Blues`
+- Unobserved Physics Environment
+ - `sh scripts/gen_unobserved.sh num_obj Sets`
+- FixedUnobserved Physics Environment
+ - `sh scripts/gen_unobserved_fixed.sh num_obj Sets`
+In our experiments we use `num_obj = {3,5}`
+
+### Model Based Experiments
+
+**Observed Physics Environment**
+
+```
+sh scripts/run_observed.sh num_obj model_name encoder batch_size cmap seed loss emb_dim
+sh scripts/eval_observed.sh num_obj model_name encoder cmap seed loss mode emb_dim
+
+num_obj = number of objects {3,5}
+model_name = AE, VAE, Modular, GNN
+encoder = medium
+batch_size = 512
+cmap = Blues
+loss = NLL or Contrastive
+emb_dim = 128
+mode = test
+```
+
+**Unobserved Physics Environment**
+```
+sh scripts/run_unobserved.sh num_obj model_name encoder batch_size cmap seed loss emb_dim
+sh scripts/eval_unobserved.sh num_obj model_name encoder cmap seed loss mode emb_dim
+
+num_obj = number of objects {3,5}
+model_name = AE, VAE, Modular, GNN
+encoder = medium
+batch_size = 512
+cmap = Sets
+loss = NLL or Contrastive
+emb_dim = 128
+mode = test
+```
+
+**FixedUnobserved Physics Environment**
+```
+sh scripts/run_fixed_unobserved.sh num_obj model_name encoder batch_size cmap seed loss emb_dim
+sh scripts/eval_fixed_unobserved.sh num_obj model_name encoder cmap seed loss mode emb_dim
+
+num_obj = number of objects {3,5}
+model_name = AE, VAE, Modular, GNN
+encoder = medium
+batch_size = 512
+cmap = Sets
+loss = NLL or Contrastive
+emb_dim = 128
+mode = test
+```
 
 
-## Generate data
 
-### Chemistry Env
+### Reinforcement Learning Experiments
+
+The below scripts run the reinforcement learning experiments for the above trained models. 
+
+**Observed Physics Environment**
+```
+# This scripts will automatically load the pre-trained model with above arguments. 
+sh scripts/run_reward_observed.sh num_obj model_name encoder batch_size cmap seed loss emb_dim
+sh scripts/eval_rl_observed.sh num_obj model_name encoder cmap seed loss mode emb_dim steps
+
+num_obj = {3,5}
+model_name = AE, VAE, Modular, GNN
+batch_size = 32
+cmap = Blues
+loss = NLL or Contrastive
+emb_dim = 128
+mode = test
+steps = {1,5,10}
+
+```
+
+
+**Unobserved Physics Environment**
+```
+# This scripts will automatically load the pre-trained model with above arguments. 
+sh scripts/run_reward_unobserved.sh num_obj model_name encoder batch_size cmap seed loss emb_dim
+sh scripts/eval_rl_unobserved.sh num_obj model_name encoder cmap seed loss mode emb_dim steps
+
+num_obj = {3,5}
+model_name = AE, VAE, Modular, GNN
+batch_size = 32
+cmap = Sets
+loss = NLL or Contrastive
+emb_dim = 128
+mode = test
+steps = {1,5,10}
+
+```
+
+**FixedUnobserved Physics Environment**
+```
+# This scripts will automatically load the pre-trained model with above arguments. 
+sh scripts/run_reward_fixed_unobserved.sh num_obj model_name encoder batch_size cmap seed loss emb_dim
+sh scripts/eval_rl_fixed_unobserved.sh num_obj model_name encoder cmap seed loss mode emb_dim steps
+
+num_obj = {3,5}
+model_name = AE, VAE, Modular, GNN
+batch_size = 32
+cmap = Sets
+loss = NLL or Contrastive
+emb_dim = 128
+mode = test
+steps = {1,5,10}
+
+```
+
+
+### To Reproduce Experiments from the paper 
+```
+# Generate Date
+sh scripts/gen_observed.sh 3 Blues
+sh scripts/gen_observed.sh 5 Blues
+
+sh scripts/gen_unobserved.sh 3 Sets
+sh scripts/gen_unobserved.sh 5 Sets
+
+sh scripts/gen_unobserved_fixed.sh 3 Sets
+sh scripts/gen_unobserved_fixed.sh 5 Sets
+
+
+# Model Based Experiments
+## Observed Physics Environment
+### These 8 experiments are run for model_name = AE, VAE, Modular, GNN
+sh scripts/run_observed.sh 3 AE medium 512 Blues 0 NLL 128
+sh scripts/eval_observed.sh 3 AE medium Blues 0 NLL test 128
+
+sh scripts/run_observed.sh 3 AE medium 512 Blues 0 Contrastive 128
+sh scripts/eval_observed.sh 3 AE medium Blues 0 Contrastive test 128
+
+
+sh scripts/run_observed.sh 5 AE medium 512 Blues 0 NLL 128
+sh scripts/eval_observed.sh 5 AE medium Blues 0 NLL test 128
+
+sh scripts/run_observed.sh 5 AE medium 512 Blues 0 Contrastive 128
+sh scripts/eval_observed.sh 5 AE medium Blues 0 Contrastive test 128
+
+## Unobserved Physics Environment
+### These 8 experiments are run for model_name = AE, VAE, Modular, GNN
+sh scripts/run_unobserved.sh 3 AE medium 512 Sets 0 NLL 128
+sh scripts/eval_unobserved.sh 3 AE medium Sets 0 NLL test 128
+
+sh scripts/run_unobserved.sh 3 AE medium 512 Sets 0 Contrastive 128
+sh scripts/eval_unobserved.sh 3 AE medium Sets 0 Contrastive test 128
+
+
+sh scripts/run_unobserved.sh 5 AE medium 512 Sets 0 NLL 128
+sh scripts/eval_unobserved.sh 5 AE medium Sets 0 NLL test 128
+
+sh scripts/run_unobserved.sh 5 AE medium 512 Sets 0 Contrastive 128
+sh scripts/eval_unobserved.sh 5 AE medium Sets 0 Contrastive test 128
+
+
+## FixedUnobserved Physics Environment
+### These 8 experiments are run for model_name = AE, VAE, Modular, GNN
+sh scripts/run__fixed_unobserved.sh 3 AE medium 512 Sets 0 NLL 128
+sh scripts/eval_fixded_unobserved.sh 3 AE medium Sets 0 NLL test 128
+
+sh scripts/run_fixed_unobserved.sh 3 AE medium 512 Sets 0 Contrastive 128
+sh scripts/eval_fixed_unobserved.sh 3 AE medium Sets 0 Contrastive test 128
+
+
+sh scripts/run_fixed_unobserved.sh 5 AE medium 512 Sets 0 NLL 128
+sh scripts/eval_fixed_unobserved.sh 5 AE medium Sets 0 NLL test 128
+
+sh scripts/run_fixed_unobserved.sh 5 AE medium 512 Sets 0 Contrastive 128
+sh scripts/eval_fixed_unobserved.sh 5 AE medium Sets 0 Contrastive test 128
+
+
+# Reinforcement Learning 
+## The below experiments can be repeated for model_name = {AE, VAE. Modular, GNN}, loss = {NLL, Contrastive}, num_obj = {3,5}, environments = {Observed, Unobserved, FixedUnobserved}
+sh scripts/run_reward_observed.sh 3 AE medium 512 Blues 0 NLL 128
+sh scripts/eval_rl_observed.sh 3 AE medium Blues 0 NLL Train 128 1
+sh scripts/eval_rl_observed.sh 3 AE medium Blues 0 NLL Train 128 5
+sh scripts/eval_rl_observed.sh 3 AE medium Blues 0 NLL Train 128 10
+```
+
+
+## Chemistry Environment
+
+### Data Generation
 ```
 sh scripts/chem_data.sh num_obj num_color graph max_steps movement
 
-graph: This can be either a name of the graph from the predefined graphs, or you can specify the structure like this: 1-\>2,2-\>3
-max_steps: Always specify 10
-movement: Static: The positions are fixed across all episodes.
-          Dynamic: The positions are varying across all episodes. 
-```
-The following predefined graphs are available for specification:
-```
-'chain3':'0->1->2',
-'fork3':'0->{1-2}',
-'collider3':'{0-1}->2',
-'collider4':'{0-2}->3',
-'collider5':'{0-3}->4',
-'collider6':'{0-4}->5',
-'collider7':'{0-5}->6',
-'collider8':'{0-6}->7',
-'collider9':'{0-7}->8',
-'collider10':'{0-8}->9',
-'collider11':'{0-9}->10',
-'collider12':'{0-10}->11',
-'collider13':'{0-11}->12',
-'collider14':'{0-12}->13',
-'collider15':'{0-13}->14',
-'confounder3':'{0-2}->{0-2}',
-'chain4':'0->1->2->3',
-'chain5':'0->1->2->3->4',
-'chain6':'0->1->2->3->4->5',
-'chain7':'0->1->2->3->4->5->6',
-'chain8':'0->1->2->3->4->5->6->7',
-'chain9':'0->1->2->3->4->5->6->7->8',
-'chain10':'0->1->2->3->4->5->6->7->8->9',
-'chain11':'0->1->2->3->4->5->6->7->8->9->10',
-'chain12':'0->1->2->3->4->5->6->7->8->9->10->11',
-'chain13':'0->1->2->3->4->5->6->7->8->9->10->11->12',
-'chain14':'0->1->2->3->4->5->6->7->8->9->10->11->12->13',
-'chain15':'0->1->2->3->4->5->6->7->8->9->10->11->12->13->14',
-'full3':'{0-2}->{0-2}',
-'full4':'{0-3}->{0-3}',
-'full5':'{0-4}->{0-4}',
-'full6':'{0-5}->{0-5}',
-'full7':'{0-6}->{0-6}',
-'full8':'{0-7}->{0-7}',
-'full9':'{0-8}->{0-8}',
-'full10':'{0-9}->{0-9}',
-'full11':'{0-10}->{0-10}',
-'full12':'{0-11}->{0-11}',
-'full13':'{0-12}->{0-12}',
-'full14':'{0-13}->{0-13}',
-'full15':'{0-14}->{0-14}',
-'tree9':'0->1->3->7,0->2->6,1->4,3->8,2->5',
-'tree10':'0->1->3->7,0->2->6,1->4->9,3->8,2->5',
-'tree11':'0->1->3->7,0->2->6,1->4->10,3->8,4->9,2->5',
-'tree12':'0->1->3->7,0->2->6,1->4->10,3->8,4->9,2->5->11',
-'tree13':'0->1->3->7,0->2->6,1->4->10,3->8,4->9,2->5->11,5->12',
-'tree14':'0->1->3->7,0->2->6,1->4->10,3->8,4->9,2->5->11,5->12,6->13',
-'tree15':'0->1->3->7,0->2->6->14,1->4->10,3->8,4->9,2->5->11,5->12,6->13',
-'jungle3':'0->{1-2}',
-'jungle4':'0->1->3,0->2,0->3',
-'jungle5':'0->1->3,1->4,0->2,0->3,0->4',
-'jungle6':'0->1->3,1->4,0->2->5,0->3,0->4,0->5',
-'jungle7':'0->1->3,1->4,0->2->5,2->6,0->3,0->4,0->5,0->6',
-'jungle8':'0->1->3->7,1->4,0->2->5,2->6,0->3,0->4,0->5,0->6,1->7',
-'jungle9':'0->1->3->7,3->8,1->4,0->2->5,2->6,0->3,0->4,0->5,0->6,1->7,1->8',
-'jungle10':'0->1->3->7,3->8,1->4->9,0->2->5,2->6,0->3,0->4,0->5,0->6,1->7,1->8,1->9',
-'jungle11':'0->1->3->7,3->8,1->4->9,4->10,0->2->5,2->6,0->3,0->4,0->5,0->6,1->7,1->8,1->9,1->10',
-'jungle12':'0->1->3->7,3->8,1->4->9,4->10,0->2->5->11,2->6,0->3,0->4,0->5,0->6,1->7,1->8,1->9,1->10,2->11',
-'jungle13':'0->1->3->7,3->8,1->4->9,4->10,0->2->5->11,5->12,2->6,0->3,0->4,0->5,0->6,1->7,1->8,1->9,1->10,2->11,2->12',
-'jungle14':'0->1->3->7,3->8,1->4->9,4->10,0->2->5->11,5->12,2->6->13,0->3,0->4,0->5,0->6,1->7,1->8,1->9,1->10,2->11,2->12,2->13',
-'jungle15':'0->1->3->7,3->8,1->4->9,4->10,0->2->5->11,5->12,2->6->13,6->14,0->3,0->4,0->5,0->6,1->7,1->8,1->9,1->10,2->11,2->12,2->13,2->14',
-'bidiag3':'{0-2}->{0-2}',
-'bidiag4':'{0-1}->{1-2}->{2-3}',
-'bidiag5':'{0-1}->{1-2}->{2-3}->{3-4}',
-'bidiag6':'{0-1}->{1-2}->{2-3}->{3-4}->{4-5}',
-'bidiag7':'{0-1}->{1-2}->{2-3}->{3-4}->{4-5}->{5-6}',
-'bidiag8':'{0-1}->{1-2}->{2-3}->{3-4}->{4-5}->{5-6}->{6-7}',
-'bidiag9':'{0-1}->{1-2}->{2-3}->{3-4}->{4-5}->{5-6}->{6-7}->{7-8}',
-'bidiag10':'{0-1}->{1-2}->{2-3}->{3-4}->{4-5}->{5-6}->{6-7}->{7-8}->{8-9}',
-'bidiag11':'{0-1}->{1-2}->{2-3}->{3-4}->{4-5}->{5-6}->{6-7}->{7-8}->{8-9}->{9-10}',
-'bidiag12':'{0-1}->{1-2}->{2-3}->{3-4}->{4-5}->{5-6}->{6-7}->{7-8}->{8-9}->{9-10}->{10-11}',
-'bidiag13':'{0-1}->{1-2}->{2-3}->{3-4}->{4-5}->{5-6}->{6-7}->{7-8}->{8-9}->{9-10}->{10-11}->{11-12}',
-'bidiag14':'{0-1}->{1-2}->{2-3}->{3-4}->{4-5}->{5-6}->{6-7}->{7-8}->{8-9}->{9-10}->{10-11}->{11-12}->{12-13}',
-'bidiag15':'{0-1}->{1-2}->{2-3}->{3-4}->{4-5}->{5-6}->{6-7}->{7-8}->{8-9}->{9-10}->{10-11}->{11-12}->{12-13}->{13-14}',
-
-```
-### Physics Env 
-
-```
-python data_gen/env.py --env_id WShapesObserved-Train-<num_obj>-<cmap>-v0 --fname data/wshapes_observed_<num_obj>_<cmap>_train.h5  --num_episodes 1000 --episode-length 100 --seed 1
+num_obj = 5
+num_color = 5
+graph = chain<num_obj>, full<num_obj>, collider<num_obj>. For example: chain5, full5, collider5
+max_steps = 10
+movement = Static = The positions are fixed across episodes.
+          Dynamic = The positions are varying across episodes. 
 ```
 
-Note: Refer to gen_observed.sh and gen_unobserved.sh to generate data for expts. usage: ./gen_observed.sh <num_obj> <cmap>   ./gen_unobserved.sh <num_obj> <cmap>
-
-
-## Experiments
-
-### Chemistry
-The experiments can be run using the following files:
-
-- scripts/ae_chem.sh
-- scripts/vae_chem.sh
-- scripts/modular_chem.sh
-- scripts/rim_chem.sh
-- scrips/scoff_chem.sh
-
-Note that before running the RIM and SCOFF based expts please go into the `modular_dynamics` folder and run `pip install -e .`
-
-The arguments for all the above files are same as follows:
-``` 
-sh scripts/<model>_chem.sh num_obj num_color graph contrastive_loss max_steps movement
-
-graph: name of the graph(chain5, full5 etc)
-contrastive_loss: True or False
-max_steps: Always specify 10.
-movement: Static or Dynamic.
+### Model Based  Experiments 
 ```
-Each run produces 3 folders:
-
-- model-num_obj-num_colors-max_steps-movement-seed-contrastive_loss-1
-- model-num_obj-num_colors-max_steps-movement-seed-contrastive_loss-2
-- model-num_obj-num_colors-max_steps-movement-seed-contrastive_loss-3
-
-The 3 different folders are for 3 different seeds(1,2,3) for which the models has been run. Note that this seed and the seed provided for argments to the shell is different.
+sh scripts/run_chem.sh num_obj model_name encoder batch_size num_colors max_steps movement graph seed loss emb_dim
+sh scripts/eval_chem.sh num_obj model_name encoder num_colors max_steps movement graph seed loss mode emb_dim
 
 
-For AE, VAE, Modular (default is AE)
+num_obj = 5
+model_name = AE, VAE, Modular, GNN
+encoder = medium
+batch_size = 512
+num_colors = 5
+max_steps = 10
+movement = {Static, Dynamic}
+graph = chain<num_obj>, full<num_obj>, collider<num_obj>. For example: chain5, full5, collider5
+loss = {NLL, Contrastive}
+emb_dim = 128
+mode = test
 ```
-python train_causal_baselines.py --dataset <train_file> --encoder <size> --name  <folder_name> --eval-dataset <test_file> \
---num-graphs 10  --embedding-dim <emb-dim --num-objects <num_obj> --action-dim <num_actions>   --valid-dataset <validation_file> --save-folder <save_folder> --batch-size <batch_size> --seed 5 \
---epochs 100 --pretrain-epochs 100 --predict-diff [--vae] [--modular]
+
+### Reinforcement Learning Experiments
 ```
-For LSTM, RIM (default is LSTM)
+sh scripts/run_chem_reward.sh num_obj model_name encoder batch_size num_colors max_steps movement graph seed loss emb_dim
+sh scripts/eval_rl_chem.sh num_obj model_name encoder num_colors max_steps movement graph seed loss mode emb_dim steps
+
+
+num_obj = 5
+model_name = AE, VAE, Modular, GNN
+encoder = medium
+batch_size = 512
+num_colors = 5
+max_steps = 10
+movement = {Static, Dynamic}
+graph = chain<num_obj>, full<num_obj>, collider<num_obj>. For example: chain5, full5, collider5
+loss = {NLL, Contrastive}
+emb_dim = 128
+mode = test
+steps = {1, 5, 10}
+
 ```
-python train_causal_lstm.py --dataset <train_file> --encoder <size> --name  <folder_name> --eval-dataset <test_file> \
---num-graphs 10  --embedding-dim <emb-dim --num-objects <num_obj> --action-dim <num_actions>   --valid-dataset <validation_file> --save-folder <save_folder> --batch-size <batch_size> --seed 5 \
---epochs 100 --pretrain-epochs 100 --predict-diff [--rim]
+
+### To Reproduce Experiments from the Paper
+```
+# Generate Data
+sh scripts/chem_data.sh 5 5 chain5 10 Static
+sh scripts/chem_data.sh 5 5 full5 10 Static
+sh scripts/chem_data.sh 5 5 collider5 10 Static
+
+sh scripts/chem_data.sh 5 5 chain5 10 Dynamic
+sh scripts/chem_data.sh 5 5 full5 10 Dynamic
+sh scripts/chem_data.sh 5 5 collider5 10 Dynamic
+
+
+# Model Based Experiments
+## Repeat the below experiments for model_name = {AE, VAE, Modular, GNN}
+sh scripts/run_chem.sh 5 AE medium 512 5 10 Dynamic chain5 0 NLL 128
+sh scripts/eval_chem.sh 5 AE medium 5 10 Dynamic chain5 0 NLL test 128
+
+sh scripts/run_chem.sh 5 AE medium 512 5 10 Dynamic full5 0 NLL 128
+sh scripts/eval_chem.sh 5 AE medium 5 10 Dynamic full5 0 NLL test 128
+
+sh scripts/run_chem.sh 5 AE medium 512 5 10 Dynamic collider5 0 NLL 128
+sh scripts/eval_chem.sh 5 AE medium 5 10 Dynamic collider5 0 NLL test 128
+
+
+sh scripts/run_chem.sh 5 AE medium 512 5 10 Dynamic chain5 0 Contrastive 128
+sh scripts/eval_chem.sh 5 AE medium 5 10 Dynamic chain5 0 Contrastive test 128
+
+sh scripts/run_chem.sh 5 AE medium 512 5 10 Dynamic full5 0 Contrastive 128
+sh scripts/eval_chem.sh 5 AE medium 5 10 Dynamic full5 0 Contrastive test 128
+
+sh scripts/run_chem.sh 5 AE medium 512 5 10 Dynamic collider5 0 Contrastive 128
+sh scripts/eval_chem.sh 5 AE medium 5 10 Dynamic collider5 0 Contrastive test 128
+
+
+sh scripts/run_chem.sh 5 AE medium 512 5 10 Static chain5 0 NLL 128
+sh scripts/eval_chem.sh 5 AE medium 5 10 Static chain5 0 NLL test 128
+
+sh scripts/run_chem.sh 5 AE medium 512 5 10 Static full5 0 NLL 128
+sh scripts/eval_chem.sh 5 AE medium 5 10 Static full5 0 NLL test 128
+
+sh scripts/run_chem.sh 5 AE medium 512 5 10 Static collider5 0 NLL 128
+sh scripts/eval_chem.sh 5 AE medium 5 10 Static collider5 0 NLL test 128
+
+
+sh scripts/run_chem.sh 5 AE medium 512 5 10 Static chain5 0 Contrastive 128
+sh scripts/eval_chem.sh 5 AE medium 5 10 Static chain5 0 Contrastive test 128
+
+sh scripts/run_chem.sh 5 AE medium 512 5 10 Static full5 0 Contrastive 128
+sh scripts/eval_chem.sh 5 AE medium 5 10 Static full5 0 Contrastive test 128
+
+sh scripts/run_chem.sh 5 AE medium 512 5 10 Static collider5 0 Contrastive 128
+sh scripts/eval_chem.sh 5 AE medium 5 10 Static collider5 0 Contrastive test 128
+
+
+# Reinforcement Learning Experiments
+## Repeat the below experiments for model_name = {AE, VAE, Modular, GNN}
+sh scripts/run_chem_reward.sh 5 AE medium 512 5 10 Dynamic chain5 0 NLL 128
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic chain5 0 NLL Train 128 1
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic chain5 0 NLL Train 128 5
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic chain5 0 NLL Train 128 10
+
+sh scripts/run_chem_reward.sh 5 AE medium 512 5 10 Dynamic full5 0 NLL 128
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic full5 0 NLL Train 128 1
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic full5 0 NLL Train 128 5
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic full5 0 NLL Train 128 10
+
+sh scripts/run_chem_reward.sh 5 AE medium 512 5 10 Dynamic collider5 0 NLL 128
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic collider5 0 NLL Train 128 1
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic collider5 0 NLL Train 128 5
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic collider5 0 NLL Train 128 10
+
+
+sh scripts/run_chem_reward.sh 5 AE medium 512 5 10 Dynamic chain5 0 Contrastive 128
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic chain5 0 Contrastive Train 128 1
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic chain5 0 Contrastive Train 128 5
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic chain5 0 Contrastive Train 128 10
+
+sh scripts/run_chem_reward.sh 5 AE medium 512 5 10 Dynamic full5 0 Contrastive 128
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic full5 0 Contrastive Train 128 1
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic full5 0 Contrastive Train 128 5
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic full5 0 Contrastive Train 128 10
+
+sh scripts/run_chem_reward.sh 5 AE medium 512 5 10 Dynamic collider5 0 Contrastive 128
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic collider5 0 Contrastive Train 128 1
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic collider5 0 Contrastive Train 128 5
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Dynamic collider5 0 Contrastive Train 128 10
+
+
+sh scripts/run_chem_reward.sh 5 AE medium 512 5 10 Static chain5 0 NLL 128
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static chain5 0 NLL Train 128 1
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static chain5 0 NLL Train 128 5
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static chain5 0 NLL Train 128 10
+
+sh scripts/run_chem_reward.sh 5 AE medium 512 5 10 Static full5 0 NLL 128
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static full5 0 NLL Train 128 1
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static full5 0 NLL Train 128 5
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static full5 0 NLL Train 128 10
+
+sh scripts/run_chem_reward.sh 5 AE medium 512 5 10 Static collider5 0 NLL 128
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static collider5 0 NLL Train 128 1
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static collider5 0 NLL Train 128 5
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static collider5 0 NLL Train 128 10
+
+
+sh scripts/run_chem_reward.sh 5 AE medium 512 5 10 Static chain5 0 Contrastive 128
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static chain5 0 Contrastive Train 128 1
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static chain5 0 Contrastive Train 128 5
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static chain5 0 Contrastive Train 128 10
+
+sh scripts/run_chem_reward.sh 5 AE medium 512 5 10 Static full5 0 Contrastive 128
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static full5 0 Contrastive Train 128 1
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static full5 0 Contrastive Train 128 5
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static full5 0 Contrastive Train 128 10
+
+sh scripts/run_chem_reward.sh 5 AE medium 512 5 10 Static collider5 0 Contrastive 128
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static collider5 0 Contrastive Train 128 1
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static collider5 0 Contrastive Train 128 5
+sh scripts/eval_rl_chem.sh 5 AE medium 5 10 Static collider5 0 Contrastive Train 128 10
+
+```
+
+## Dataset Metadata
+<div itemscope itemtype="http://schema.org/Dataset">
+<table>
+  <tr>
+    <th>property</th>
+    <th>value</th>
+  </tr>
+  <tr>
+    <td>name</td>
+    <td><code itemprop="name">CausalMBRL</code></td>
+  </tr>
+  <tr>
+    <td>alternateName</td>
+    <td><code itemprop="alternateName">CausalMBRL</code></td>
+  </tr>
+  <tr>
+    <td>url</td>
+    <td><code itemprop="url">https://github.com/google-research/google-research/tree/master/cfq</code></td>
+  </tr>
+  <tr>
+    <td>description</td>
+    <td><code itemprop="description">The Compositional Freebase Questions (CFQ)
+      is a dataset that is specifically designed to measure compositional
+      generalization. CFQ is a simple yet realistic, large dataset of natural
+      language questions and answers that also provides for each question a
+      corresponding SPARQL query against the Freebase knowledge base. This means
+      that CFQ can also be used for semantic parsing.</code></td>
+  </tr>
+  <tr>
+    <td>provider</td>
+    <td>
+      <div itemscope itemtype="http://schema.org/Organization" itemprop="provider">
+        <table>
+          <tr>
+            <th>property</th>
+            <th>value</th>
+          </tr>
+          <tr>
+            <td>name</td>
+            <td><code itemprop="name">Google</code></td>
+          </tr>
+          <tr>
+            <td>sameAs</td>
+            <td><code itemprop="sameAs">https://en.wikipedia.org/wiki/Google</code></td>
+          </tr>
+        </table>
+      </div>
+    </td>
+  </tr>
+  <tr>
+    <td>license</td>
+    <td>
+      <div itemscope itemtype="http://schema.org/CreativeWork" itemprop="license">
+        <table>
+          <tr>
+            <th>property</th>
+            <th>value</th>
+          </tr>
+          <tr>
+            <td>name</td>
+            <td><code itemprop="name">CC BY-SA 3.0</code></td>
+          </tr>
+          <tr>
+            <td>url</td>
+            <td><code itemprop="url">https://creativecommons.org/licenses/by-sa/3.0/</code></td>
+          </tr>
+        </table>
+      </div>
+    </td>
+  </tr>
+  <tr>
+    <td>citation</td>
+    <td><code itemprop="citation">Daniel Keysers et al. "Measuring Compositional Generalization: A Comprehensive Method on Realistic Data" (2020). https://openreview.net/pdf?id=SygcCnNKwr</code></td>
+  </tr>
+</table>
+</div>
+
