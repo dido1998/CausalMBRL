@@ -17,9 +17,6 @@ This repository contains code to create the data and run the experiments from th
     * [To Reproduce Chemistry Environment Experiments from the Paper](#to-reproduce-chemistry-environment-experiments-from-the-paper)
 - [Dataset Metadata](#dataset-metadata)
 
-<small><i><a href='http://ecotrust-canada.github.io/markdown-toc/'>Table of contents generated with markdown-toc</a></i></small>
-
-
 ## Physics Environment
 
 ### Data Generation
