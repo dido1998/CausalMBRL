@@ -14,6 +14,7 @@ We introduce a novel suite of RL environments as a platform for investigating in
     * [Model Based  Experiments](#model-based--experiments)
     * [Reinforcement Learning Experiments](#reinforcement-learning-experiments-1)
     * [To Reproduce Chemistry Environment Experiments from the Paper](#to-reproduce-chemistry-environment-experiments-from-the-paper)
+- [Integration With Other Models](#integration-with-other-models)
 - [Dataset Metadata](#dataset-metadata)
 
 ## Physics Environment
@@ -378,6 +379,29 @@ bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Static collider5 0 Contrastive Tra
 bash scripts/eval_rl_chem.sh 5 AE medium 5 10 Static collider5 0 Contrastive Train 128 10
 
 ```
+
+## Integration With Other Models
+The proposed environment can be used with other models and benchmarks that follow the gym interface. The environments can be loaded with the following environment ids:
+```
+Physics Environment
+
+WShapesRL-<mode>-Train-<num_obj>-<cmap>-v0
+
+mode = Observed, Unobserved
+num_obj = Number of Objects
+cmap = Blues (for Observed), Sets (For Unobserved)
+
+Chemistry Environment
+
+ColorChangingRL-<num_obj>-<num_colors>-<movement>-10-v0
+
+num_obj = Number of Objects
+num_colors = Number of Colors
+movement = Static, Dynamic
+```
+
+For our PPO experiments, we integrate our environment with [this](https://github.com/lcswillems/rl-starter-files) codebase. 
+
 
 ## Dataset Metadata
 <div itemscope itemtype="http://schema.org/Dataset">
