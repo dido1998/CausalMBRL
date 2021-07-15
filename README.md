@@ -1,7 +1,6 @@
 # Systematic Evaluation of Causal Discovery in Visual Model Based Reinforcement Learning
 
-This repository contains code to create the data and run the experiments from the paper.
-
+We introduce a novel suite of RL environments as a platform for investigating inductive  biases, causal representations, and learning algorithms. The goal is to disentangle distinct aspects of causal learning by allowing the user to choose and modulate different properties of the ground truth causal graph, such as the structure, the size of the graph and the sparsity of the graph. ). We also provide evaluation criteria for measuring causal induction in MBRL that we argue help measure progress and facilitate further research in these directions. The paper is available at https://arxiv.org/abs/2107.00848.
 
 ## Table of Contents
 
